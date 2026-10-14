@@ -39,7 +39,10 @@ export async function loadStarfield(url: string, radius = 50_000) {
     sizes[i] = size;
   }
   const { sprite } = createPointCloud(positions, colors, sizes);
+  // In the opaque pass and first in it, so the ground, planets and ship all draw over the stars
+  // (as a transparent object it would be drawn last, over everything).
   sprite.renderOrder = -1;
+  sprite.material.transparent = false;
   sprite.material.depthTest = false;
   return sprite;
 }

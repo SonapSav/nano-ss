@@ -190,11 +190,19 @@ export function orientationFromForwardUp(
 
 export type Hazard = { kind: 'burned-up'; body: 'Earth' } | { kind: 'crashed'; body: 'Moon' };
 
-/** Checks the ship against Earth's atmosphere line (100 km, D-044) and the Moon's surface. */
-export function checkHazard(position: Vector3, moon: Vector3): Hazard | null {
+/**
+ * Checks the ship against Earth's atmosphere line (100 km, D-044) and the
+ * Moon's surface; `moonAltitude` (above the actual ground, e.g. spaceport
+ * terrain) replaces the sphere test when given.
+ */
+export function checkHazard(
+  position: Vector3,
+  moon: Vector3,
+  moonAltitude?: number,
+): Hazard | null {
   if (position.length() - EARTH.radius < EARTH.hazardAltitude)
     return { kind: 'burned-up', body: 'Earth' };
-  if (position.distanceTo(moon) - MOON.radius < MOON.hazardAltitude)
-    return { kind: 'crashed', body: 'Moon' };
+  const altitude = moonAltitude ?? position.distanceTo(moon) - MOON.radius;
+  if (altitude < MOON.hazardAltitude) return { kind: 'crashed', body: 'Moon' };
   return null;
 }

@@ -19,6 +19,8 @@ export async function createRenderer(
   // Render resolution is capped here; dynamic resolution scaling (D-010) comes later.
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
   renderer.toneMapping = AgXToneMapping;
+  // Sun shadows near the lunar surface (Stage 5); lights switch casting on and off as needed.
+  renderer.shadowMap.enabled = true;
   renderer.onDeviceLost = (info) => {
     onDeviceLost(`${info.api} device lost: ${info.message}`);
   };

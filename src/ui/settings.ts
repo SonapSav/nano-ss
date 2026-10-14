@@ -6,10 +6,12 @@ export interface Settings {
   dust: boolean;
   /** Flight assist (FA) on at start; toggled in flight with Y (D-041). */
   fa: boolean;
+  /** Sun shadows near the lunar surface (Stage 5); costs GPU time. */
+  shadows: boolean;
 }
 
 const STORAGE_KEY = 'nano-ss.settings';
-const DEFAULTS: Settings = { frameRate: 'cap-60', dust: true, fa: true };
+const DEFAULTS: Settings = { frameRate: 'cap-60', dust: true, fa: true, shadows: true };
 
 /** Loads settings; browser storage may be blocked, so failures fall back to defaults. */
 export function loadSettings(): Settings {
@@ -21,6 +23,7 @@ export function loadSettings(): Settings {
       frameRate: parsed.frameRate === 'display' ? 'display' : 'cap-60',
       dust: typeof parsed.dust === 'boolean' ? parsed.dust : DEFAULTS.dust,
       fa: typeof parsed.fa === 'boolean' ? parsed.fa : DEFAULTS.fa,
+      shadows: typeof parsed.shadows === 'boolean' ? parsed.shadows : DEFAULTS.shadows,
     };
   } catch {
     return { ...DEFAULTS };
@@ -80,6 +83,17 @@ export function createSettingsPanel(
   });
   dustLabel.append(dust, ' Motion reference dust (an aid to see drift; not physical)');
 
+  const shadowLabel = document.createElement('label');
+  const shadows = document.createElement('input');
+  shadows.type = 'checkbox';
+  shadows.checked = settings.shadows;
+  shadows.addEventListener('change', () => {
+    settings.shadows = shadows.checked;
+    saveSettings(settings);
+    handlers.onChange(settings);
+  });
+  shadowLabel.append(shadows, ' Shadows near the lunar surface');
+
   const fullscreen = document.createElement('button');
   fullscreen.type = 'button';
   fullscreen.textContent = 'Fullscreen';
@@ -96,6 +110,8 @@ export function createSettingsPanel(
     rateLabel,
     document.createElement('br'),
     dustLabel,
+    document.createElement('br'),
+    shadowLabel,
     document.createElement('br'),
     fullscreen,
     mouse,

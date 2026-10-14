@@ -9,6 +9,9 @@ import {
   type AccelerationField,
   type PointState,
 } from './orbit';
+import { MoonFrame } from './moonFrame';
+import type { Spaceport } from './sites';
+import { groundRadius } from './terrain';
 import type { SimClock } from './time';
 
 /** Distance within which the target counts as "near" for FA and the motion dust (m). */
@@ -23,11 +26,18 @@ export class World {
   readonly moonVelocity = new Vector3();
   readonly sunPosition = new Vector3();
   readonly target: PointState;
+  /** The Moon-fixed frame now: orientation, spin, and ground velocity (Stage 5). */
+  readonly moonFrame = new MoonFrame();
+  /** Spaceports on the Moon, set once loaded. */
+  spaceports: Spaceport[] = [];
 
   /** Gravity field for the physics step: the Moon is looked up at each substep time. */
   readonly gravityField: AccelerationField;
 
   private readonly _moon = new Vector3();
+  private readonly _laterPosition = new Vector3();
+  private readonly _laterVelocity = new Vector3();
+  private readonly _local = new Vector3();
   private readonly _omega = new Vector3();
   private readonly _offset = new Vector3();
 
@@ -62,6 +72,15 @@ export class World {
   refresh(): void {
     this.moon.stateAt(this.clock.jd, this.moonPosition, this.moonVelocity);
     this.sun.stateAt(this.clock.jd, this.sunPosition);
+    // One second ahead, for the Moon's spin rate.
+    this.moon.stateAt(this.clock.jd + 1 / 86_400, this._laterPosition, this._laterVelocity);
+    this.moonFrame.set(
+      this.moonPosition,
+      this.moonVelocity,
+      this._laterPosition,
+      this._laterVelocity,
+      1,
+    );
   }
 
   /** Moves the target along its orbit for `dt` seconds (call before advancing the clock). */
@@ -79,6 +98,18 @@ export class World {
     this._omega.crossVectors(t.position, t.velocity).divideScalar(t.position.lengthSq());
     this._offset.subVectors(position, t.position);
     return out.crossVectors(this._omega, this._offset).add(t.velocity);
+  }
+
+  /** Altitude above the Moon's actual ground (spaceport terrain or the reference sphere), m. */
+  moonGroundAltitude(position: Vector3): number {
+    this.moonFrame.toLocal(position, this._local);
+    return (
+      this._local.length() -
+      groundRadius(
+        this.spaceports.map((p) => p.site),
+        this._local,
+      )
+    );
   }
 
   /** The body the ship is orbiting: the Moon inside its sphere of influence, otherwise Earth. */

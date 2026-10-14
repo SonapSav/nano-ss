@@ -14,6 +14,7 @@ import {
   Scene,
   SphereGeometry,
   Vector3,
+  type Quaternion,
   type Sprite,
   type Texture,
 } from 'three/webgpu';
@@ -23,6 +24,7 @@ import { createHyperStreaks } from './hyperStreaks';
 import { createOrbitLine, orbitPoints } from './orbitLine';
 import { createEarth, createMoon } from './planets';
 import { createSun } from './sun';
+import type { Spaceport } from '../world/sites';
 import type { TextureName } from './textures';
 import { createRcsPlumes } from './rcsThrusters';
 import { createSpaceDust } from './spaceDust';
@@ -134,6 +136,12 @@ export interface SceneFrame {
   retro: number;
   rcs: { rotation: Vector3; translation: Vector3 };
   moonVelocity: Vector3;
+  /** The Moon-fixed frame's orientation (from the world, shared with physics). */
+  moonOrientation: Quaternion;
+  /** Sun shadows from terrain and ship (near the lunar surface; Stage 5). */
+  shadows: boolean;
+  /** Map view: shows the Moon's orbit line. */
+  mapView: boolean;
   /** Motion dust is shown around the target only when the ship is near it. */
   showDust: boolean;
   timeSeconds: number;
@@ -152,17 +160,25 @@ export function inEarthShadow(p: Vector3, sun: Vector3): boolean {
   return p.lengthSq() - along * along < EARTH.radius * EARTH.radius;
 }
 const _sunDir = new Vector3();
+const _shipDir = new Vector3();
+/** Earthshine intensity with a fully lit Earth (a game-friendly brightness, not photometric). */
+const EARTHSHINE = 1.5;
 
 /**
  * Camera-relative scene: the ship stays at the render origin and `worldRoot`
  * (the Earth-centred frame) sits at minus the ship's 64-bit position, so
  * three.js combines the large offsets in 64-bit before anything reaches the GPU.
  */
+/** Shadow camera half-size and distance from the ship (m). */
+const SHADOW_HALF = 1_500;
+const SHADOW_DISTANCE = 8_000;
+
 export interface SceneAssets {
   textures: Partial<Record<TextureName, Texture>>;
   stars: Sprite;
   /** The Moon's path around Earth for the coming month, Earth-centred (m). */
   moonOrbit: Float32Array;
+  spaceports: readonly Spaceport[];
 }
 
 export function createSpaceScene(assets: SceneAssets) {
@@ -171,7 +187,20 @@ export function createSpaceScene(assets: SceneAssets) {
 
   // Sunlight from the real Sun direction, plus a faint fill standing in for earthshine.
   const sun = new DirectionalLight(0xffffff, 4);
-  scene.add(sun, new AmbientLight(0x334466, 0.06));
+  scene.add(sun, sun.target, new AmbientLight(0x334466, 0.06));
+  // Earthshine: sunlight reflected by Earth, from Earth's direction, scaled by how much of Earth is lit.
+  const earthshine = new DirectionalLight(0x9db8ff, 0);
+  scene.add(earthshine, earthshine.target);
+  // Shadows over a few km around the ship (the ship stays at the render origin).
+  sun.shadow.mapSize.set(2048, 2048);
+  const shadowCamera = sun.shadow.camera;
+  shadowCamera.left = shadowCamera.bottom = -SHADOW_HALF;
+  shadowCamera.right = shadowCamera.top = SHADOW_HALF;
+  shadowCamera.near = 1;
+  shadowCamera.far = SHADOW_DISTANCE * 2;
+  shadowCamera.updateProjectionMatrix();
+  sun.shadow.bias = -0.0005;
+  sun.shadow.normalBias = 0.6;
   const sunDisc = createSun();
   scene.add(sunDisc.group);
 
@@ -183,7 +212,7 @@ export function createSpaceScene(assets: SceneAssets) {
 
   const earth = createEarth(assets.textures);
   worldRoot.add(earth.mesh);
-  const moon = createMoon(assets.textures);
+  const moon = createMoon(assets.textures, assets.spaceports);
   worldRoot.add(moon.mesh);
 
   const orbitLine = createOrbitLine(0x5fd4ff);
@@ -200,6 +229,10 @@ export function createSpaceScene(assets: SceneAssets) {
   worldRoot.add(target);
 
   const { ship, engineGlow, glowMaterial, retroGlows, retroMaterial, strobe } = createShipModel();
+  // The hull casts a shadow on the ground (glows and lights do not).
+  ship.traverse((o) => {
+    if (o instanceof Mesh && o.material instanceof MeshStandardMaterial) o.castShadow = true;
+  });
   const plumes = createRcsPlumes();
   ship.add(plumes.group);
   const streaks = createHyperStreaks();
@@ -216,15 +249,23 @@ export function createSpaceScene(assets: SceneAssets) {
     update(f: SceneFrame) {
       // 64-bit subtraction happens here, on the CPU, before anything reaches the GPU.
       worldRoot.position.copy(f.ship).negate();
-      moon.update(f.moon, f.moonVelocity);
+      moon.update(f.moon, f.moonOrientation, f.timeSeconds);
       target.position.copy(f.target);
       stars.position.copy(f.cameraPosition);
 
-      sun.position.copy(f.sun).normalize();
-      earth.update(f.earthRotation, sun.position);
+      _sunDir.copy(f.sun).normalize();
+      // The light sits toward the Sun at shadow-camera distance, aimed at the ship.
+      sun.position.copy(_sunDir).multiplyScalar(SHADOW_DISTANCE);
+      sun.castShadow = f.shadows;
+      // Earth sits at the Earth-centred origin, i.e. at -ship in render space.
+      earthshine.position.copy(f.ship).negate().normalize();
+      const litFraction = (1 + _sunDir.dot(_shipDir.copy(f.ship).normalize())) / 2;
+      earthshine.intensity = EARTHSHINE * litFraction;
+      earth.update(f.earthRotation, _sunDir);
       sunDisc.update(f.sun);
 
       streaks.update(f.hyperSpeed !== null, f.hyperSpeed ?? 0, f.dt);
+      moonOrbitLine.line.visible = f.mapView;
       orbitLine.line.visible = f.orbit !== null;
       if (f.orbit) {
         orbitPoints(f.orbit.elements, f.orbit.maxRadius, orbitLine.positions);

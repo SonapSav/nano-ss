@@ -1,21 +1,24 @@
 import {
   AdditiveBlending,
   FrontSide,
-  Matrix4,
   Mesh,
   MeshBasicNodeMaterial,
   MeshStandardNodeMaterial,
   SphereGeometry,
   Vector2,
   Vector3,
+  type Quaternion,
   type Texture,
 } from 'three/webgpu';
 import {
+  Discard,
+  Fn,
   color,
   dot,
   float,
   normalView,
   normalWorld,
+  positionLocal,
   positionViewDirection,
   pow,
   smoothstep,
@@ -24,6 +27,9 @@ import {
   vec3,
 } from 'three/tsl';
 import { EARTH, MOON } from '../world/bodies';
+import type { Spaceport } from '../world/sites';
+import { createSpaceport } from './spaceport';
+import { createSiteTerrain } from './terrainMesh';
 import type { TextureName } from './textures';
 
 function required(textures: Partial<Record<TextureName, Texture>>, name: TextureName): Texture {
@@ -85,18 +91,30 @@ export function createEarth(textures: Partial<Record<TextureName, Texture>>) {
   };
 }
 
-const _m = new Matrix4();
-const _x = new Vector3();
-const _y = new Vector3();
-const _z = new Vector3();
-
-/**
- * The Moon from NASA LRO data: LROC WAC mosaic for the surface and LOLA
- * elevation as relief. Tidally locked: its near side (longitude 0) faces Earth.
- */
-export function createMoon(textures: Partial<Record<TextureName, Texture>>) {
+export function createMoon(
+  textures: Partial<Record<TextureName, Texture>>,
+  spaceports: readonly Spaceport[],
+) {
   const material = new MeshStandardNodeMaterial({ roughness: 1, metalness: 0 });
-  material.colorNode = texture(required(textures, 'moon-color'));
+  const surface = texture(required(textures, 'moon-color'));
+  // Inside a site's terrain (gnomonic coordinates within the ring), the terrain mesh replaces the sphere.
+  const p = positionLocal.normalize();
+  let cut: ReturnType<ReturnType<typeof p.dot>['greaterThan']> | null = null;
+  for (const { site } of spaceports) {
+    const d = p.dot(vec3(site.up));
+    const x = p.dot(vec3(site.east)).div(d).mul(MOON.radius).abs();
+    const y = p.dot(vec3(site.north)).div(d).mul(MOON.radius).abs();
+    const E = site.data.ringHalfExtent;
+    const here = d.greaterThan(0).and(x.lessThan(E)).and(y.lessThan(E));
+    cut = cut ? cut.or(here) : here;
+  }
+  const hole = cut;
+  material.colorNode = hole
+    ? Fn(() => {
+        Discard(hole);
+        return surface;
+      })()
+    : surface;
   const relief = textures['moon-normal'];
   if (relief) {
     material.normalMap = relief;
@@ -104,15 +122,25 @@ export function createMoon(textures: Partial<Record<TextureName, Texture>>) {
   }
   const moon = new Mesh(sphere(MOON.radius, 192, 96), material);
 
+  const ports = spaceports.map((port) => {
+    const terrain = createSiteTerrain(
+      port.site,
+      textures[`site-${port.name}` as TextureName],
+      required(textures, 'moon-color'),
+    );
+    const buildings = createSpaceport(port.site);
+    terrain.add(buildings.group);
+    moon.add(terrain);
+    return buildings;
+  });
+
   return {
     mesh: moon,
-    /** Places and orients the Moon (Earth-centred position and velocity). */
-    update(position: Vector3, velocity: Vector3) {
+    /** Places and orients the Moon from the world's Moon-fixed frame. */
+    update(position: Vector3, orientation: Quaternion, timeSeconds: number) {
       moon.position.copy(position);
-      _x.copy(position).negate().normalize(); // near side toward Earth
-      _z.crossVectors(position, velocity).normalize(); // orbit pole ≈ the Moon's spin axis
-      _y.crossVectors(_z, _x);
-      moon.quaternion.setFromRotationMatrix(_m.makeBasis(_x, _y, _z));
+      moon.quaternion.copy(orientation);
+      for (const port of ports) port.update(timeSeconds);
     },
   };
 }

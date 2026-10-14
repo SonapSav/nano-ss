@@ -191,7 +191,11 @@ export function stepPhysics(s: PhysicsState, realDt: number): StepEvents {
     world.stepTarget(h);
     world.clock.seconds += h;
     world.refresh();
-    events.hazard = checkHazard(body.position, world.moonPosition);
+    events.hazard = checkHazard(
+      body.position,
+      world.moonPosition,
+      world.moonGroundAltitude(body.position),
+    );
     if (events.hazard) return events;
   }
 

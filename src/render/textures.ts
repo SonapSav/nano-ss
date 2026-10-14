@@ -7,10 +7,12 @@ export const TEXTURE_NAMES = [
   'earth-clouds',
   'moon-color',
   'moon-normal',
+  'site-tranquility',
+  'site-shackleton',
 ] as const;
 export type TextureName = (typeof TEXTURE_NAMES)[number];
 /** Relief and other extras: the game still runs without them. */
-const OPTIONAL: readonly TextureName[] = ['moon-normal'];
+const OPTIONAL: readonly TextureName[] = ['moon-normal', 'site-tranquility', 'site-shackleton'];
 
 /**
  * Loads the GPU-compressed KTX2 textures built by `make scenery` (D-022).

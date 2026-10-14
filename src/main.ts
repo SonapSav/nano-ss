@@ -12,6 +12,7 @@ import { apsides } from './render/orbitLine';
 import { createSpaceScene } from './render/spaceScene';
 import { loadStarfield } from './render/starfield';
 import { loadTextures } from './render/textures';
+import { loadSpaceports } from './world/sites';
 import { EARTH, MOON_SOI } from './world/bodies';
 import { createControlState, nextAssistMode } from './sim/controls';
 import { commandStop, createFlightComputer, setAssistMode } from './sim/flightComputer';
@@ -37,6 +38,10 @@ import { TARGET_NEAR, World } from './world/world';
 /** Memory budget per scenery worker until real scenery work defines one. */
 const PER_WORKER_MB = 512;
 const RAD_TO_DEG = 180 / Math.PI;
+/** Sun shadows are drawn below this height over the lunar ground (m): they only matter near the surface. */
+const SHADOW_ALTITUDE = 50_000;
+/** Below this height over the lunar ground the orbit line shows only in the map view (m). */
+const ORBIT_LINE_ALTITUDE = 30_000;
 /** Body axes have -Z forward; the HUD shows forward as positive. */
 const FLIP_Z = new Vector3(1, 1, -1);
 
@@ -136,17 +141,35 @@ async function main(): Promise<void> {
 
   // Presentation.
   // Scenery: NASA textures, the real star catalogue, and the Moon's path for the coming month.
-  const [textures, stars] = await Promise.all([
+  const [textures, stars, spaceports] = await Promise.all([
     loadTextures(renderer),
     loadStarfield('data/stars.bin'),
+    loadSpaceports(),
   ]);
+  world.spaceports = spaceports;
+
+  // Test start (?start=tranquility or ?start=shackleton): 2 km over the pad, tail down, matching the ground.
+  const testStart = new URLSearchParams(location.search).get('start');
+  const startPort = spaceports.find((p) => p.name === testStart);
+  if (startPort) {
+    const up = startPort.site.padPoint(new Vector3()).normalize();
+    const local = startPort.site.padPoint(new Vector3()).addScaledVector(up, 2000);
+    world.moonFrame.toWorld(local, ship.body.position);
+    world.moonFrame.groundVelocity(ship.body.position, ship.body.velocity);
+    const upWorld = up.clone().applyQuaternion(world.moonFrame.orientation);
+    const northWorld = startPort.site.north.clone().applyQuaternion(world.moonFrame.orientation);
+    orientationFromForwardUp(upWorld, northWorld, ship.body.orientation);
+    copyBodyState(ship.body, previous);
+    physics.reference = world.referenceBody(ship.body.position);
+    physics.insideTargetZone = false;
+  }
   const moonOrbit = new Float32Array(361 * 3);
   const moonPoint = new Vector3();
   for (let i = 0; i <= 360; i++) {
     moonTable.stateAt(clock.jd + (i / 360) * 27.32, moonPoint);
     moonOrbit.set([moonPoint.x, moonPoint.y, moonPoint.z], i * 3);
   }
-  const scene = createSpaceScene({ textures, stars, moonOrbit });
+  const scene = createSpaceScene({ textures, stars, moonOrbit, spaceports });
   const rig = new CameraRig(window.innerWidth / window.innerHeight);
   rig.attach(canvas);
   const hud = createHud(document.body);
@@ -322,6 +345,7 @@ async function main(): Promise<void> {
     periapsis.add(referenceRender);
     apoapsis?.add(referenceRender);
 
+    const moonAltitude = world.moonGroundAltitude(renderPosition);
     scene.ship.quaternion.copy(renderOrientation);
     rig.update(renderOrientation, loop.paused ? 0 : elapsed, referenceRender, referenceBody.radius);
     const nearTarget = renderPosition.distanceTo(renderTarget) < TARGET_NEAR;
@@ -330,6 +354,9 @@ async function main(): Promise<void> {
       cameraPosition: rig.camera.position,
       moon: world.moonPosition,
       moonVelocity: world.moonVelocity,
+      moonOrientation: world.moonFrame.orientation,
+      shadows: settings.shadows && moonAltitude < SHADOW_ALTITUDE,
+      mapView: rig.mode === 'map',
       sun: world.sunPosition,
       target: renderTarget,
       earthRotation: gmstRadians(clock.jd),
@@ -340,11 +367,15 @@ async function main(): Promise<void> {
       timeSeconds: now / 1000,
       hyperSpeed: physics.hyper.state === 'active' ? physics.hyper.speed / C : null,
       dt: elapsed,
-      orbit: {
-        elements,
-        center: reference.position,
-        maxRadius: referenceBody === EARTH ? 1.5e9 : MOON_SOI,
-      },
+      // Near the lunar ground the orbit line is clutter: only in the map there.
+      orbit:
+        rig.mode === 'map' || moonAltitude > ORBIT_LINE_ALTITUDE
+          ? {
+              elements,
+              center: reference.position,
+              maxRadius: referenceBody === EARTH ? 1.5e9 : MOON_SOI,
+            }
+          : null,
     });
 
     const w = ship.body.angularVelocity;
