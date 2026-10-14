@@ -43,6 +43,7 @@ Decided:
 - **HTTPS:** certificates from a local certificate authority made with mkcert (D-013)
 
 - **Collisions:** custom contact checks behind a replaceable interface (D-017)
+- **Atmospheres:** full aerodynamics and re-entry heating, spaceplane-style runway landings (D-014)
 
 ## Hardware Baseline
 
@@ -82,15 +83,22 @@ nano-ss/
 
 Items discussed but not yet decided. Each entry records when it was raised, who owns the decision, and the actions expected from them. When an item is decided, move it to **Resolved Decisions** with the outcome and date.
 
-### D-014: Atmospheric flight
+### D-019: Landing on airless bodies and leaving Earth
 
 - **Raised:** 2026-10-14
 - **Owner:** Panos
-- **Status:** Deferred (2026-10-14) until planets with atmospheres are added. The first stage is Earth and Moon, and the Moon has no atmosphere.
-- **Context:** Some spacedromes may be on planets with atmospheres (e.g. Earth, Mars). With a realistic flight model (D-004), atmosphere means drag, aerodynamic forces, and re-entry heating during landing. Ignoring atmosphere makes landing on those planets unrealistic; airless bodies (e.g. the Moon) avoid the issue entirely. Depends on D-005.
-- **Action expected (Panos):** Choose whether atmospheres affect flight, or whether the first spacedromes are on airless bodies only.
+- **Status:** Open
+- **Context:** The ship is a spaceplane (D-014), but the first stage lands on the Moon, which has no air, so wings give no lift there and a glide landing is impossible. Leaving Earth's surface raises the same question in reverse. Options: (a) one spaceplane with vertical landing thrusters for airless bodies (Moon gravity is 1/6 of Earth's, so landing on thrusters is realistic), runway landings where there is air; (b) separate craft: the spaceplane for Earth and a lander for the Moon, docking with each other in orbit. Recommendation: (a), one ship. Also to decide: takeoff from Earth spacedromes, either horizontal from the runway with rocket engines, or vertical on thrusters.
+- **Action expected (Panos):** Choose (a) or (b), and the Earth takeoff style.
 
 ## Resolved Decisions
+
+### D-014: Atmospheric flight
+
+- **Raised:** 2026-10-14
+- **Decided:** 2026-10-14
+- **Owner:** Panos
+- **Outcome:** Full realism: drag, lift, and re-entry heating with a heat shield, using real atmosphere models (US Standard Atmosphere 1976 for Earth, NASA's Mars model later). Weather and wind are out of scope at first. Spaceplane style: re-entry, glide, and runway landing, so spacedromes on planets with atmospheres have runways. Comes in the stage right after the Moon; the first stage is Moon spacedromes plus orbital stations around Earth and the Moon. High time warp is not available in the atmosphere. Landing on airless bodies continues in D-019.
 
 ### D-017: Collision library
 
@@ -220,7 +228,7 @@ Items discussed but not yet decided. Each entry records when it was raised, who 
 - [x] Initialize repository
 - [x] Define purpose (2026-10-14)
 - [x] Choose universe and scale: real solar system (2026-10-14)
-- [ ] Settle remaining decisions (D-014 deferred)
+- [ ] Settle remaining decisions (D-019)
 - [ ] Choose tech stack
 - [ ] First working version
 
