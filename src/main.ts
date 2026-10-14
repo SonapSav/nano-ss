@@ -248,6 +248,12 @@ async function main(): Promise<void> {
   let guidance: Guidance | null = null;
   let guidanceAt = 0;
   const padRender = new Vector3();
+  /** Nearest pad (Earth-centred): a point fixed to the ground for the shadow map's texel grid. */
+  const anchorPoint = new Vector3();
+  const shadowAnchor = (position: Vector3) => {
+    const pad = world.nearestPad(position);
+    return pad ? world.moonFrame.toWorld(pad.port.site.padPoint(anchorPoint), anchorPoint) : null;
+  };
   const impactRender = new Vector3();
   let last = performance.now();
 
@@ -395,7 +401,8 @@ async function main(): Promise<void> {
       moon: world.moonPosition,
       moonVelocity: world.moonVelocity,
       moonOrientation: world.moonFrame.orientation,
-      shadows: settings.shadows && moonAltitude < SHADOW_ALTITUDE,
+      shadows:
+        settings.shadows && moonAltitude < SHADOW_ALTITUDE ? shadowAnchor(renderPosition) : null,
       mapView: rig.mode === 'map',
       landingLights: landingLights ? moonAltitude - LIGHTS_BELOW_CENTRE : null,
       sun: world.sunPosition,

@@ -149,8 +149,12 @@ export interface SceneFrame {
   moonVelocity: Vector3;
   /** The Moon-fixed frame's orientation (from the world, shared with physics). */
   moonOrientation: Quaternion;
-  /** Sun shadows from terrain and ship (near the lunar surface; Stage 5). */
-  shadows: boolean;
+  /**
+   * Sun shadows from terrain and ship (near the lunar surface; Stage 5): a
+   * point fixed to the ground (Earth-centred) that the shadow map's texels are
+   * snapped to, so they do not crawl as the ship moves; null for no shadows.
+   */
+  shadows: Vector3 | null;
   /** Map view: shows the Moon's orbit line. */
   mapView: boolean;
   /** Landing lights (Stage 5), off when null; otherwise their height above the ground (m), for dimming. */
@@ -198,6 +202,13 @@ const LANDING_GLARE = 20;
 /** Shadow camera half-size and distance from the ship (m). */
 const SHADOW_HALF = 1_500;
 const SHADOW_DISTANCE = 8_000;
+const SHADOW_MAP_SIZE = 2048;
+/** One shadow-map texel on the ground (m). */
+const SHADOW_TEXEL = (2 * SHADOW_HALF) / SHADOW_MAP_SIZE;
+const UP = new Vector3(0, 1, 0);
+const _right = new Vector3();
+const _upward = new Vector3();
+const _anchor = new Vector3();
 
 export interface SceneAssets {
   textures: Partial<Record<TextureName, Texture>>;
@@ -218,7 +229,7 @@ export function createSpaceScene(assets: SceneAssets) {
   const earthshine = new DirectionalLight(0x9db8ff, 0);
   scene.add(earthshine, earthshine.target);
   // Shadows over a few km around the ship (the ship stays at the render origin).
-  sun.shadow.mapSize.set(2048, 2048);
+  sun.shadow.mapSize.set(SHADOW_MAP_SIZE, SHADOW_MAP_SIZE);
   const shadowCamera = sun.shadow.camera;
   shadowCamera.left = shadowCamera.bottom = -SHADOW_HALF;
   shadowCamera.right = shadowCamera.top = SHADOW_HALF;
@@ -281,9 +292,27 @@ export function createSpaceScene(assets: SceneAssets) {
       stars.position.copy(f.cameraPosition);
 
       _sunDir.copy(f.sun).normalize();
-      // The light sits toward the Sun at shadow-camera distance, aimed at the ship.
-      sun.position.copy(_sunDir).multiplyScalar(SHADOW_DISTANCE);
-      sun.castShadow = f.shadows;
+      // No sunlight in Earth's shadow, or at night on the Moon (the Sun below the horizon).
+      const sunlit = !inEarthShadow(f.ship, f.sun) && !blocked(f.ship, f.sun, f.moon, MOON.radius);
+      sun.intensity = sunlit ? 4 : 0;
+      // The light sits toward the Sun at shadow-camera distance, aimed near the ship: at the
+      // point whose offset from the ground anchor is a whole number of shadow texels across
+      // the light (the axes three.js's lookAt gives the shadow camera), so texels stay put.
+      sun.target.position.set(0, 0, 0);
+      if (f.shadows) {
+        _right.crossVectors(UP, _sunDir).normalize();
+        _upward.crossVectors(_sunDir, _right);
+        _anchor.subVectors(f.shadows, f.ship);
+        for (const axis of [_right, _upward]) {
+          const along = -_anchor.dot(axis);
+          sun.target.position.addScaledVector(
+            axis,
+            Math.round(along / SHADOW_TEXEL) * SHADOW_TEXEL - along,
+          );
+        }
+      }
+      sun.position.copy(sun.target.position).addScaledVector(_sunDir, SHADOW_DISTANCE);
+      sun.castShadow = f.shadows !== null && sunlit;
       // Earth sits at the Earth-centred origin, i.e. at -ship in render space.
       earthshine.position.copy(f.ship).negate().normalize();
       const litFraction = (1 + _sunDir.dot(_shipDir.copy(f.ship).normalize())) / 2;
@@ -307,9 +336,6 @@ export function createSpaceScene(assets: SceneAssets) {
         orbitLine.line.position.copy(f.orbit.center);
         orbitLine.commit();
       }
-      // No sunlight in Earth's shadow, or at night on the Moon (the Sun below the horizon).
-      sun.intensity =
-        inEarthShadow(f.ship, f.sun) || blocked(f.ship, f.sun, f.moon, MOON.radius) ? 0 : 4;
       strobe.visible = f.timeSeconds % 1.5 < 0.08;
 
       engineGlow.visible = f.throttle > 0.001;
