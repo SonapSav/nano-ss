@@ -32,6 +32,9 @@ export interface HudData {
   notice: string | null;
   /** Hazard or other message shown in the middle of the screen, or null. */
   alert: string | null;
+  /** Periapsis and apoapsis in render space (ship at the origin), or null. */
+  periapsis: Vector3 | null;
+  apoapsis: Vector3 | null;
   /** Ship forward direction in world space (unit). */
   forward: Vector3;
   /** Angular rates in pilot terms, deg/s. */
@@ -82,6 +85,7 @@ export function formatDistance(metres: number): string {
 }
 
 const signed = (v: number) => `${v >= 0 ? '+' : ''}${v.toFixed(2)}`;
+const ORIGIN = new Vector3();
 const km = (m: number) => (Number.isFinite(m) ? `${(m / 1000).toFixed(1)} km` : 'escape');
 /** Compact duration: 45 s, 12m 30s, 3h 05m, 2d 04h; dash when undefined. */
 export function duration(s: number): string {
@@ -125,6 +129,17 @@ export function createHud(parent: HTMLElement) {
   const retrograde = marker('retrograde', '⊗');
   const target = marker('target', '◇');
   const moonMarker = marker('moon', '☾');
+  const peMarker = marker('apsis', 'Pe');
+  const apMarker = marker('apsis', 'Ap');
+  const shipMarker = marker('ship', '▲');
+  const pointDir = new Vector3();
+  /** Direction from the camera to a render-space point. */
+  const toward = (p: Vector3, camera: PerspectiveCamera) =>
+    pointDir.subVectors(p, camera.position).normalize();
+  const label = (m: ReturnType<typeof marker>, text: string) => {
+    m.el.textContent = text;
+    m.edge.lastChild?.replaceWith(text);
+  };
   root.append(text, paused);
   parent.appendChild(root);
 
@@ -182,6 +197,11 @@ export function createHud(parent: HTMLElement) {
       place(retrograde, retroDir, camera, moving);
       place(target, data.targetDirection, camera, data.targetDistance > 1);
       place(moonMarker, data.moonDirection, camera, true);
+      place(shipMarker, toward(ORIGIN, camera), camera, data.camera === 'map');
+      if (data.periapsis) place(peMarker, toward(data.periapsis, camera), camera, true);
+      else place(peMarker, ORIGIN, camera, false);
+      if (data.apoapsis) place(apMarker, toward(data.apoapsis, camera), camera, true);
+      else place(apMarker, ORIGIN, camera, false);
       paused.hidden = !data.paused && data.alert === null;
       paused.textContent = data.alert ?? 'PAUSED';
 
@@ -189,6 +209,8 @@ export function createHud(parent: HTMLElement) {
       if (nowMs - lastText < 100) return;
       lastText = nowMs;
       const o = data.orbit;
+      label(peMarker, `Pe ${km(o.periapsisAltitude)}`);
+      label(apMarker, `Ap ${km(o.apoapsisAltitude)}`);
       const ts = data.targetSpeed;
       text.textContent = [
         `TIME     ${data.simDate.toISOString().slice(0, 19).replace('T', ' ')} UTC${data.warp > 1 ? `   WARP ${String(data.warp)}×${data.warp > 4 ? ' (coasting)' : ''}` : ''}`,

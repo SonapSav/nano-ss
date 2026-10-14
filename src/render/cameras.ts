@@ -1,6 +1,6 @@
 import { Euler, PerspectiveCamera, Quaternion, Vector3 } from 'three/webgpu';
 
-export type CameraMode = 'chase' | 'nose';
+export type CameraMode = 'chase' | 'nose' | 'map';
 
 /** Nose camera position in body coordinates (m): at the nose, slightly up. */
 const NOSE_OFFSET = new Vector3(0, 0.5, -4.2);
@@ -19,6 +19,12 @@ export class CameraRig {
   private orbitYaw = 0;
   private orbitPitch = -0.18;
   private distance = 18;
+  /** Map view (M): orbit around the body being orbited, with its own angles and zoom. */
+  private flightMode: 'chase' | 'nose' = 'chase';
+  private mapYaw = 0.6;
+  private mapPitch = 0.5;
+  private mapDistance = 0;
+  private mapMinDistance = 1;
 
   private readonly offset = new Vector3();
   private readonly orbit = new Quaternion();
@@ -38,22 +44,40 @@ export class CameraRig {
     });
     element.addEventListener('pointerup', () => (dragging = false));
     element.addEventListener('pointermove', (e) => {
-      if (!dragging || this.mode !== 'chase') return;
-      this.orbitYaw -= e.movementX * 0.005;
-      this.orbitPitch = Math.max(-1.4, Math.min(1.4, this.orbitPitch - e.movementY * 0.005));
+      if (!dragging) return;
+      if (this.mode === 'map') {
+        this.mapYaw -= e.movementX * 0.005;
+        this.mapPitch = Math.max(-1.5, Math.min(1.5, this.mapPitch + e.movementY * 0.005));
+      } else if (this.mode === 'chase') {
+        this.orbitYaw -= e.movementX * 0.005;
+        this.orbitPitch = Math.max(-1.4, Math.min(1.4, this.orbitPitch - e.movementY * 0.005));
+      }
     });
     element.addEventListener(
       'wheel',
       (e) => {
         e.preventDefault();
-        this.distance = Math.max(8, Math.min(200, this.distance * Math.exp(e.deltaY * 0.001)));
+        const k = Math.exp(e.deltaY * 0.001);
+        if (this.mode === 'map') {
+          this.mapDistance = Math.max(this.mapMinDistance, Math.min(2e9, this.mapDistance * k));
+        } else {
+          this.distance = Math.max(8, Math.min(200, this.distance * k));
+        }
       },
       { passive: false },
     );
   }
 
+  /** C: chase or nose camera (also leaves the map). */
   toggle(): void {
-    this.mode = this.mode === 'chase' ? 'nose' : 'chase';
+    this.flightMode =
+      this.mode === 'map' ? this.flightMode : this.flightMode === 'chase' ? 'nose' : 'chase';
+    this.mode = this.flightMode;
+  }
+
+  /** M: map view on and off. */
+  toggleMap(): void {
+    this.mode = this.mode === 'map' ? this.flightMode : 'map';
   }
 
   resize(aspect: number): void {
@@ -61,8 +85,27 @@ export class CameraRig {
     this.camera.updateProjectionMatrix();
   }
 
-  update(shipOrientation: Quaternion, dt: number): void {
+  /**
+   * `mapCenter` is the orbited body's centre in render space (relative to the
+   * ship) and `mapRadius` its radius, used by the map view.
+   */
+  update(shipOrientation: Quaternion, dt: number, mapCenter?: Vector3, mapRadius = 1): void {
     const cam = this.camera;
+    if (this.mode === 'map' && mapCenter) {
+      this.mapMinDistance = mapRadius * 1.3;
+      if (this.mapDistance === 0) this.mapDistance = mapRadius * 4.5;
+      this.mapDistance = Math.max(this.mapDistance, this.mapMinDistance);
+      // Spherical position around the body, with +Z (north) up.
+      const cp = Math.cos(this.mapPitch);
+      cam.position
+        .set(Math.cos(this.mapYaw) * cp, Math.sin(this.mapYaw) * cp, Math.sin(this.mapPitch))
+        .multiplyScalar(this.mapDistance)
+        .add(mapCenter);
+      cam.up.set(0, 0, 1);
+      cam.lookAt(mapCenter);
+      cam.updateMatrixWorld();
+      return;
+    }
     if (!this.initialized) {
       this.follow.copy(shipOrientation);
       this.initialized = true;

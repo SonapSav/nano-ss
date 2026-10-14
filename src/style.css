@@ -175,3 +175,15 @@ body {
 .hud-edge.moon {
   color: #d8d8e8;
 }
+
+.hud-marker.apsis,
+.hud-edge.apsis {
+  font-size: 12px;
+  color: #5fd4ff;
+}
+
+.hud-marker.ship,
+.hud-edge.ship {
+  font-size: 14px;
+  color: #ffffff;
+}

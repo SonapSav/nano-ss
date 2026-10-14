@@ -14,48 +14,17 @@ import {
   Scene,
   SphereGeometry,
   Vector3,
+  type Sprite,
+  type Texture,
 } from 'three/webgpu';
-import { EARTH, MOON } from '../world/bodies';
-import { createPointCloud } from './pointCloud';
+import type { OrbitElements } from '../world/orbit';
+import { EARTH } from '../world/bodies';
+import { createOrbitLine, orbitPoints } from './orbitLine';
+import { createEarth, createMoon } from './planets';
+import { createSun } from './sun';
+import type { TextureName } from './textures';
 import { createRcsPlumes } from './rcsThrusters';
 import { createSpaceDust } from './spaceDust';
-
-/** Small deterministic random generator, so the starfield is the same every run. */
-function mulberry32(seed: number) {
-  let a = seed;
-  return () => {
-    a = (a + 0x6d2b79f5) | 0;
-    let t = Math.imul(a ^ (a >>> 15), 1 | a);
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
-
-/** Procedural starfield at "infinity"; the real star catalogue comes in Stage 3. */
-function createStars(count: number, radius: number) {
-  const random = mulberry32(1969);
-  const positions = new Float32Array(count * 3);
-  const colors = new Float32Array(count * 3);
-  const sizes = new Float32Array(count);
-  const tint = new Color();
-  for (let i = 0; i < count; i++) {
-    // Uniform direction on the sphere.
-    const z = random() * 2 - 1;
-    const phi = random() * Math.PI * 2;
-    const r = Math.sqrt(1 - z * z);
-    positions.set([r * Math.cos(phi) * radius, z * radius, r * Math.sin(phi) * radius], i * 3);
-    // Few bright stars, many faint ones.
-    const brightness = Math.pow(random(), 4) * 0.9 + 0.1;
-    tint.setHSL(random() < 0.5 ? 0.6 : 0.1, random() * 0.4, 0.75);
-    colors.set([tint.r * brightness, tint.g * brightness, tint.b * brightness], i * 3);
-    sizes[i] = brightness > 0.6 ? 3 : brightness > 0.25 ? 2 : 1.5;
-  }
-  const { sprite: stars } = createPointCloud(positions, colors, sizes);
-  // Drawn first and without depth, so Earth, the Moon, and the ship always cover them.
-  stars.renderOrder = -1;
-  stars.material.depthTest = false;
-  return stars;
-}
 
 /**
  * Greybox spacecraft (D-043): about 9 m long, no wings. Nose toward -Z, main
@@ -163,9 +132,12 @@ export interface SceneFrame {
   throttle: number;
   retro: number;
   rcs: { rotation: Vector3; translation: Vector3 };
+  moonVelocity: Vector3;
   /** Motion dust is shown around the target only when the ship is near it. */
   showDust: boolean;
   timeSeconds: number;
+  /** The ship's orbit around the reference body (drawn as a line), or null to hide it. */
+  orbit: { elements: OrbitElements; center: Vector3; maxRadius: number } | null;
 }
 
 /** True if `p` is inside Earth's shadow (cylinder model; the umbra cone is ignored). */
@@ -182,32 +154,40 @@ const _sunDir = new Vector3();
  * (the Earth-centred frame) sits at minus the ship's 64-bit position, so
  * three.js combines the large offsets in 64-bit before anything reaches the GPU.
  */
-export function createSpaceScene() {
+export interface SceneAssets {
+  textures: Partial<Record<TextureName, Texture>>;
+  stars: Sprite;
+  /** The Moon's path around Earth for the coming month, Earth-centred (m). */
+  moonOrbit: Float32Array;
+}
+
+export function createSpaceScene(assets: SceneAssets) {
   const scene = new Scene();
   scene.background = new Color(0x000000);
 
   // Sunlight from the real Sun direction, plus a faint fill standing in for earthshine.
   const sun = new DirectionalLight(0xffffff, 4);
   scene.add(sun, new AmbientLight(0x334466, 0.06));
+  const sunDisc = createSun();
+  scene.add(sunDisc.group);
 
-  const stars = createStars(4000, 50_000);
+  const stars = assets.stars;
   scene.add(stars);
 
   const worldRoot = new Group();
   scene.add(worldRoot);
 
-  // Plain lit spheres for now; real NASA textures come in Stage 3c.
-  const earth = new Mesh(
-    new SphereGeometry(EARTH.radius, 128, 64).rotateX(Math.PI / 2), // poles along +Z (Earth's axis)
-    new MeshStandardMaterial({ color: 0x3b6fb6, roughness: 0.9, metalness: 0 }),
-  );
-  worldRoot.add(earth);
+  const earth = createEarth(assets.textures);
+  worldRoot.add(earth.mesh);
+  const moon = createMoon(assets.textures);
+  worldRoot.add(moon.mesh);
 
-  const moon = new Mesh(
-    new SphereGeometry(MOON.radius, 96, 48),
-    new MeshStandardMaterial({ color: 0x9a9a9a, roughness: 1, metalness: 0 }),
-  );
-  worldRoot.add(moon);
+  const orbitLine = createOrbitLine(0x5fd4ff);
+  worldRoot.add(orbitLine.line);
+  const moonOrbitLine = createOrbitLine(0x8a8aa0, assets.moonOrbit.length / 3);
+  moonOrbitLine.positions.set(assets.moonOrbit);
+  moonOrbitLine.commit();
+  worldRoot.add(moonOrbitLine.line);
 
   const target = new Mesh(
     new BoxGeometry(20, 10, 30),
@@ -230,12 +210,20 @@ export function createSpaceScene() {
     update(f: SceneFrame) {
       // 64-bit subtraction happens here, on the CPU, before anything reaches the GPU.
       worldRoot.position.copy(f.ship).negate();
-      moon.position.copy(f.moon);
+      moon.update(f.moon, f.moonVelocity);
       target.position.copy(f.target);
-      earth.rotation.z = f.earthRotation;
       stars.position.copy(f.cameraPosition);
 
       sun.position.copy(f.sun).normalize();
+      earth.update(f.earthRotation, sun.position);
+      sunDisc.update(f.sun);
+
+      orbitLine.line.visible = f.orbit !== null;
+      if (f.orbit) {
+        orbitPoints(f.orbit.elements, f.orbit.maxRadius, orbitLine.positions);
+        orbitLine.line.position.copy(f.orbit.center);
+        orbitLine.commit();
+      }
       sun.intensity = inEarthShadow(f.ship, f.sun) ? 0 : 4;
       strobe.visible = f.timeSeconds % 1.5 < 0.08;
 

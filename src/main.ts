@@ -8,7 +8,11 @@ import { describeGpu, formatGpuReport } from './platform/gpuInfo';
 import { browserWorkerBudget, workerOverrideFromUrl } from './platform/workerBudget';
 import { CameraRig } from './render/cameras';
 import { createRenderer } from './render/createRenderer';
+import { apsides } from './render/orbitLine';
 import { createSpaceScene } from './render/spaceScene';
+import { loadStarfield } from './render/starfield';
+import { loadTextures } from './render/textures';
+import { EARTH, MOON_SOI } from './world/bodies';
 import { createControlState, nextAssistMode } from './sim/controls';
 import { commandStop, createFlightComputer, setAssistMode } from './sim/flightComputer';
 import { copyBodyState, createBodyState } from './sim/rigidBody';
@@ -127,7 +131,18 @@ async function main(): Promise<void> {
   });
 
   // Presentation.
-  const scene = createSpaceScene();
+  // Scenery: NASA textures, the real star catalogue, and the Moon's path for the coming month.
+  const [textures, stars] = await Promise.all([
+    loadTextures(renderer),
+    loadStarfield('data/stars.bin'),
+  ]);
+  const moonOrbit = new Float32Array(361 * 3);
+  const moonPoint = new Vector3();
+  for (let i = 0; i <= 360; i++) {
+    moonTable.stateAt(clock.jd + (i / 360) * 27.32, moonPoint);
+    moonOrbit.set([moonPoint.x, moonPoint.y, moonPoint.z], i * 3);
+  }
+  const scene = createSpaceScene({ textures, stars, moonOrbit });
   const rig = new CameraRig(window.innerWidth / window.innerHeight);
   rig.attach(canvas);
   const hud = createHud(document.body);
@@ -173,6 +188,7 @@ async function main(): Promise<void> {
   const renderOrientation = new Quaternion();
   const forward = new Vector3();
   const toTarget = new Vector3();
+  const referenceRender = new Vector3();
   const renderTarget = new Vector3();
   const relativePosition = new Vector3();
   const relativeVelocity = new Vector3();
@@ -235,6 +251,9 @@ async function main(): Promise<void> {
         case 'switchCamera':
           rig.toggle();
           break;
+        case 'toggleMap':
+          rig.toggleMap();
+          break;
         case 'pause':
           setPaused(!loop.paused);
           break;
@@ -276,13 +295,25 @@ async function main(): Promise<void> {
     // The target moves at orbital speed too: interpolate it, or it would jitter by tens of metres.
     renderTarget.lerpVectors(previousTarget, world.target.position, alpha);
 
+    // Orbit around the body being orbited: for the orbit line, the map view, and the HUD.
+    const referenceBody = world.referenceBody(ship.body.position);
+    const reference = world.bodyState(referenceBody);
+    relativePosition.subVectors(ship.body.position, reference.position);
+    orbitalVelocity.subVectors(ship.body.velocity, reference.velocity);
+    const elements = orbitElements(relativePosition, orbitalVelocity, referenceBody.gm);
+    referenceRender.subVectors(reference.position, renderPosition);
+    const { periapsis, apoapsis } = apsides(elements);
+    periapsis.add(referenceRender);
+    apoapsis?.add(referenceRender);
+
     scene.ship.quaternion.copy(renderOrientation);
-    rig.update(renderOrientation, loop.paused ? 0 : elapsed);
+    rig.update(renderOrientation, loop.paused ? 0 : elapsed, referenceRender, referenceBody.radius);
     const nearTarget = renderPosition.distanceTo(renderTarget) < TARGET_NEAR;
     scene.update({
       ship: renderPosition,
       cameraPosition: rig.camera.position,
       moon: world.moonPosition,
+      moonVelocity: world.moonVelocity,
       sun: world.sunPosition,
       target: renderTarget,
       earthRotation: gmstRadians(clock.jd),
@@ -291,16 +322,16 @@ async function main(): Promise<void> {
       rcs: ship.appliedRcs,
       showDust: settings.dust && nearTarget,
       timeSeconds: now / 1000,
+      orbit: {
+        elements,
+        center: reference.position,
+        maxRadius: referenceBody === EARTH ? 1.5e9 : MOON_SOI,
+      },
     });
 
     const w = ship.body.angularVelocity;
     const rcsActive =
       ship.appliedRcs.rotation.lengthSq() + ship.appliedRcs.translation.lengthSq() > 1e-6;
-    const referenceBody = world.referenceBody(ship.body.position);
-    const reference = world.bodyState(referenceBody);
-    relativePosition.subVectors(ship.body.position, reference.position);
-    orbitalVelocity.subVectors(ship.body.velocity, reference.velocity);
-    const elements = orbitElements(relativePosition, orbitalVelocity, referenceBody.gm);
     toTarget.subVectors(world.target.position, ship.body.position);
     const targetDistance = toTarget.length();
     // Relative to the target's orbiting frame, so a ship on the same orbit reads as at rest.
@@ -331,6 +362,8 @@ async function main(): Promise<void> {
         moonDistance: toMoon.length(),
         moonDirection: toMoon.normalize(),
         simDate: clock.date,
+        periapsis,
+        apoapsis,
         warp: physics.warp.factor,
         notice: notice && performance.now() < notice.until ? notice.text : null,
         alert,
