@@ -19,6 +19,7 @@ import {
 } from 'three/webgpu';
 import type { OrbitElements } from '../world/orbit';
 import { EARTH } from '../world/bodies';
+import { createHyperStreaks } from './hyperStreaks';
 import { createOrbitLine, orbitPoints } from './orbitLine';
 import { createEarth, createMoon } from './planets';
 import { createSun } from './sun';
@@ -138,6 +139,9 @@ export interface SceneFrame {
   timeSeconds: number;
   /** The ship's orbit around the reference body (drawn as a line), or null to hide it. */
   orbit: { elements: OrbitElements; center: Vector3; maxRadius: number } | null;
+  /** Hyperdrive speed in multiples of c while active, else null; and the frame time (s). */
+  hyperSpeed: number | null;
+  dt: number;
 }
 
 /** True if `p` is inside Earth's shadow (cylinder model; the umbra cone is ignored). */
@@ -198,6 +202,8 @@ export function createSpaceScene(assets: SceneAssets) {
   const { ship, engineGlow, glowMaterial, retroGlows, retroMaterial, strobe } = createShipModel();
   const plumes = createRcsPlumes();
   ship.add(plumes.group);
+  const streaks = createHyperStreaks();
+  ship.add(streaks.lines);
   scene.add(ship);
 
   const dust = createSpaceDust();
@@ -218,6 +224,7 @@ export function createSpaceScene(assets: SceneAssets) {
       earth.update(f.earthRotation, sun.position);
       sunDisc.update(f.sun);
 
+      streaks.update(f.hyperSpeed !== null, f.hyperSpeed ?? 0, f.dt);
       orbitLine.line.visible = f.orbit !== null;
       if (f.orbit) {
         orbitPoints(f.orbit.elements, f.orbit.maxRadius, orbitLine.positions);

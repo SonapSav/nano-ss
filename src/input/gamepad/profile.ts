@@ -54,11 +54,12 @@ export const HOTAS_X_LINUX: GamepadProfile = {
     assistRetrograde: 2, // R3
     switchCamera: 4,
     toggleReverse: 5, // throttle button 6
+    hyperEngage: 6, // throttle button 7
+    hyperDrop: 7, // throttle button 8
     warpUp: 8, // R2
     warpDown: 9, // L2
     toggleStats: 10, // SE
     pause: 11, // ST
-    // 6/7 reserved for hyperdrive.
   },
 };
 

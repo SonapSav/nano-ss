@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { duration, formatDistance, formatSpeed } from './hud';
+import { duration, formatC, formatDistance, formatSpeed } from './hud';
 
 describe('HUD formatting', () => {
   it('formats durations compactly', () => {
@@ -14,5 +14,11 @@ describe('HUD formatting', () => {
     expect(formatSpeed(7670)).toBe('7.67 km/s');
     expect(formatDistance(2000)).toBe('2.00 km');
     expect(formatDistance(350)).toBe('350 m');
+  });
+
+  it('formats hyperdrive speeds as multiples of c', () => {
+    expect(formatC(0.1)).toBe('0.1c');
+    expect(formatC(100)).toBe('100c');
+    expect(formatC(0.0342)).toBe('0.034c');
   });
 });

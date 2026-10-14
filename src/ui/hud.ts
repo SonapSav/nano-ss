@@ -15,6 +15,34 @@ export interface HudOrbit {
   timeToPeriapsis: number;
 }
 
+export interface HudHyper {
+  state: 'idle' | 'charging' | 'active';
+  chargeRemaining: number;
+  /** Band selected with the throttle, and the speed actually flown, in multiples of c. */
+  band: number;
+  speed: number;
+  /** Why the drive cannot engage here, e.g. "Earth: climb above 1,000 km", or null. */
+  blocked: string | null;
+  /** Time to the drop-out altitude of the body ahead, e.g. "Moon in 12 s", or null. */
+  arrival: string | null;
+}
+
+/** "0.1c", "10c", "0.034c". */
+export function formatC(multiple: number): string {
+  return `${multiple >= 1 ? multiple.toFixed(0) : multiple >= 0.1 ? multiple.toFixed(1) : multiple.toPrecision(2)}c`;
+}
+
+function hyperLine(h: HudHyper): string {
+  if (h.state === 'active') {
+    const governed = h.speed < h.band * 0.98 ? ` (slowed to ${formatC(h.speed)})` : '';
+    return `HYPER    ACTIVE ${formatC(h.band)}${governed}${h.arrival ? `   ${h.arrival}` : ''}   O drops out`;
+  }
+  if (h.state === 'charging')
+    return `HYPER    CHARGING ${h.chargeRemaining.toFixed(1)} s   band ${formatC(h.band)}`;
+  if (h.blocked) return `HYPER    BLOCKED: ${h.blocked}`;
+  return `HYPER    READY   band ${formatC(h.band)} (throttle)   U engages`;
+}
+
 export interface HudData {
   /** Velocity relative to the body being orbited (m/s): ⊕ and ⊗ follow it. */
   velocity: Vector3;
@@ -32,6 +60,8 @@ export interface HudData {
   notice: string | null;
   /** Hazard or other message shown in the middle of the screen, or null. */
   alert: string | null;
+  /** Hyperdrive status for the HYPER line (Stage 4). */
+  hyper: HudHyper;
   /** Periapsis and apoapsis in render space (ship at the origin), or null. */
   periapsis: Vector3 | null;
   apoapsis: Vector3 | null;
@@ -186,7 +216,17 @@ export function createHud(parent: HTMLElement) {
   const velocityDir = new Vector3();
   const retroDir = new Vector3();
 
+  const flashEl = document.createElement('div');
+  flashEl.className = 'hud-flash';
+  root.appendChild(flashEl);
+
   return {
+    /** Brief screen flash when the hyperdrive engages or drops out. */
+    flash() {
+      flashEl.classList.remove('on');
+      flashEl.getBoundingClientRect(); // reflow, so the CSS animation restarts
+      flashEl.classList.add('on');
+    },
     update(data: HudData, camera: PerspectiveCamera, nowMs: number) {
       const speed = data.velocity.length();
       const moving = speed > 0.05;
@@ -215,9 +255,14 @@ export function createHud(parent: HTMLElement) {
       text.textContent = [
         `TIME     ${data.simDate.toISOString().slice(0, 19).replace('T', ' ')} UTC${data.warp > 1 ? `   WARP ${String(data.warp)}×${data.warp > 4 ? ' (coasting)' : ''}` : ''}`,
         ...(data.notice ? [`         ${data.notice}`] : []),
-        `ORBIT    ${o.body}  ALT ${km(o.altitude)}  SPEED ${formatSpeed(speed)}`,
-        `         Ap ${km(o.apoapsisAltitude)} in ${duration(o.timeToApoapsis)} | Pe ${km(o.periapsisAltitude)} in ${duration(o.timeToPeriapsis)}`,
-        `         period ${duration(o.period)}  inc ${((o.inclination * 180) / Math.PI).toFixed(1)}°  Moon ${formatDistance(data.moonDistance)}`,
+        ...(data.hyper.state === 'active'
+          ? [`ORBIT    in hyperdrive   Moon ${formatDistance(data.moonDistance)}`]
+          : [
+              `ORBIT    ${o.body}  ALT ${km(o.altitude)}  SPEED ${formatSpeed(speed)}`,
+              `         Ap ${km(o.apoapsisAltitude)} in ${duration(o.timeToApoapsis)} | Pe ${km(o.periapsisAltitude)} in ${duration(o.timeToPeriapsis)}`,
+              `         period ${duration(o.period)}  inc ${((o.inclination * 180) / Math.PI).toFixed(1)}°  Moon ${formatDistance(data.moonDistance)}`,
+            ]),
+        hyperLine(data.hyper),
         `TARGET   ${formatDistance(data.targetDistance)}  closing ${formatSpeed(data.closingSpeed)}`,
         `VEL      fwd ${signed(data.velocityShip.z)}  right ${signed(data.velocityShip.x)}  up ${signed(data.velocityShip.y)} m/s (to target)`,
         `RATES    P ${rate(data.pitchRate)}  Y ${rate(data.yawRate)}  R ${rate(data.rollRate)} °/s`,

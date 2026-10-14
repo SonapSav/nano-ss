@@ -28,7 +28,9 @@ import { createStatsOverlay } from './ui/statsOverlay';
 import { Ephemeris } from './world/ephemeris';
 import { orbitElements, orientationFromForwardUp } from './world/orbit';
 import { WARP_DROP_MESSAGES } from './world/timeWarp';
-import { createPhysicsState, stepPhysics } from './game/physicsStep';
+import { createPhysicsState, stepPhysics, type HyperEvent } from './game/physicsStep';
+import { C } from './world/hyperdrive';
+import { HYPER_MESSAGES, hyperHud } from './game/hyperHud';
 import { SimClock, gmstRadians } from './world/time';
 import { TARGET_NEAR, World } from './world/world';
 
@@ -109,6 +111,7 @@ async function main(): Promise<void> {
 
   const physics = createPhysicsState(ship, world, fc, controls);
   let notice: { text: string; until: number } | null = null;
+  const hyperEvents: HyperEvent[] = [];
 
   const loop = new FixedStepLoop((dt) => {
     copyBodyState(ship.body, previous);
@@ -117,6 +120,7 @@ async function main(): Promise<void> {
     addGamepad(controls, pad, arbiter);
 
     const events = stepPhysics(physics, dt);
+    if (events.hyper) hyperEvents.push(events.hyper);
     if (events.warpDrop) {
       notice = { text: WARP_DROP_MESSAGES[events.warpDrop], until: performance.now() + 4000 };
     }
@@ -265,13 +269,20 @@ async function main(): Promise<void> {
           void toggleFullscreen();
           break;
         case 'warpUp':
-          physics.warp.up();
+          if (physics.hyper.state !== 'active') physics.warp.up();
+          break;
+        case 'hyperEngage':
+          physics.hyper.requestEngage();
+          break;
+        case 'hyperDrop':
+          physics.hyper.requestDrop();
           break;
         case 'warpDown':
           physics.warp.down();
           break;
         case 'resetShip':
           placeAtStart();
+          physics.hyper.finishDrop();
           physics.warp.limit(1);
           physics.reference = world.referenceBody(ship.body.position);
           physics.insideTargetZone = true;
@@ -290,6 +301,11 @@ async function main(): Promise<void> {
 
     // Physics on its fixed step, then interpolate between the last two states.
     const alpha = loop.advance(elapsed);
+    for (const event of hyperEvents.splice(0)) {
+      const message = HYPER_MESSAGES[event];
+      if (message) notice = { text: message(world, ship.body.position), until: now + 5000 };
+      if (event === 'engaged' || event === 'arrived' || event === 'dropped') hud.flash();
+    }
     renderPosition.lerpVectors(previous.position, ship.body.position, alpha);
     renderOrientation.slerpQuaternions(previous.orientation, ship.body.orientation, alpha);
     // The target moves at orbital speed too: interpolate it, or it would jitter by tens of metres.
@@ -322,6 +338,8 @@ async function main(): Promise<void> {
       rcs: ship.appliedRcs,
       showDust: settings.dust && nearTarget,
       timeSeconds: now / 1000,
+      hyperSpeed: physics.hyper.state === 'active' ? physics.hyper.speed / C : null,
+      dt: elapsed,
       orbit: {
         elements,
         center: reference.position,
@@ -364,6 +382,13 @@ async function main(): Promise<void> {
         simDate: clock.date,
         periapsis,
         apoapsis,
+        hyper: hyperHud(
+          physics,
+          world,
+          ship.body.position,
+          ship.body.orientation,
+          controls.throttle,
+        ),
         warp: physics.warp.factor,
         notice: notice && performance.now() < notice.until ? notice.text : null,
         alert,
