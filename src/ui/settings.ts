@@ -4,10 +4,12 @@ export interface Settings {
   frameRate: FrameRateMode;
   /** Motion reference dust around the ship (not physical; an aid to see drift). */
   dust: boolean;
+  /** Flight assist (FA) on at start; toggled in flight with Y (D-041). */
+  fa: boolean;
 }
 
 const STORAGE_KEY = 'nano-ss.settings';
-const DEFAULTS: Settings = { frameRate: 'cap-60', dust: true };
+const DEFAULTS: Settings = { frameRate: 'cap-60', dust: true, fa: true };
 
 /** Loads settings; browser storage may be blocked, so failures fall back to defaults. */
 export function loadSettings(): Settings {
@@ -18,6 +20,7 @@ export function loadSettings(): Settings {
     return {
       frameRate: parsed.frameRate === 'display' ? 'display' : 'cap-60',
       dust: typeof parsed.dust === 'boolean' ? parsed.dust : DEFAULTS.dust,
+      fa: typeof parsed.fa === 'boolean' ? parsed.fa : DEFAULTS.fa,
     };
   } catch {
     return { ...DEFAULTS };

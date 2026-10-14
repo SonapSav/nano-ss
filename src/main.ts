@@ -10,16 +10,21 @@ import { CameraRig } from './render/cameras';
 import { createRenderer } from './render/createRenderer';
 import { TARGET_POSITION, createSpaceScene } from './render/spaceScene';
 import { createControlState, nextAssistMode } from './sim/controls';
-import { computeRcs, createFlightComputer, setAssistMode } from './sim/flightComputer';
+import {
+  computeCommands,
+  createFlightCommands,
+  createFlightComputer,
+  setAssistMode,
+} from './sim/flightComputer';
 import { copyBodyState, createBodyState } from './sim/rigidBody';
-import { createShip, mainDeltaV, resetShip, stepShip, type RcsCommand } from './sim/ship';
-import { placeholderSpaceplane } from './sim/ships/placeholderSpaceplane';
+import { createShip, engineAcceleration, mainDeltaV, resetShip, stepShip } from './sim/ship';
+import { placeholderSpacecraft } from './sim/ships/placeholderSpacecraft';
 import { FixedStepLoop } from './sim/simLoop';
 import { FrameLimiter } from './ui/frameLimiter';
 import { createControlsPanel } from './ui/controlsPanel';
 import { createGamepadDebug, gamepadDebugEnabled } from './ui/gamepadDebug';
 import { createHud } from './ui/hud';
-import { createSettingsPanel, loadSettings } from './ui/settings';
+import { createSettingsPanel, loadSettings, saveSettings } from './ui/settings';
 import { createStatsOverlay } from './ui/statsOverlay';
 
 /** Memory budget per scenery worker until real scenery work defines one. */
@@ -60,10 +65,11 @@ async function main(): Promise<void> {
   stats.setLabel(`${api} | workers ${String(workers.count)}`);
 
   // Simulation.
-  const ship = createShip(placeholderSpaceplane);
-  const fc = createFlightComputer('off');
+  const ship = createShip(placeholderSpacecraft);
+  const settings = loadSettings();
+  const fc = createFlightComputer('off', settings.fa);
   const controls = createControlState();
-  const rcs: RcsCommand = { rotation: new Vector3(), translation: new Vector3() };
+  const commands = createFlightCommands();
   const inputSettings = loadInputSettings();
   const keyboard = new KeyboardInput(window, inputSettings.keyboard);
   const gamepad = new GamepadInput(inputSettings.profiles, (p) => calibrationFor(inputSettings, p));
@@ -77,8 +83,8 @@ async function main(): Promise<void> {
     copyBodyState(ship.body, previous);
     applyKeyboard(keyboard.held, keyboard.bindings, controls, dt);
     addGamepad(controls, pad, arbiter);
-    computeRcs(fc, ship, controls, rcs);
-    stepShip(ship, controls.throttle, rcs, dt);
+    computeCommands(fc, ship, controls, commands);
+    stepShip(ship, commands.engines, commands.rcs, dt);
   });
 
   // Presentation.
@@ -89,7 +95,6 @@ async function main(): Promise<void> {
   const gamepadDebug = gamepadDebugEnabled(location.search)
     ? createGamepadDebug(document.body)
     : null;
-  const settings = loadSettings();
   const limiter = new FrameLimiter(settings.frameRate);
   const controlsPanel = createControlsPanel(inputSettings, (s) => {
     keyboard.setBindings(s.keyboard);
@@ -162,6 +167,24 @@ async function main(): Promise<void> {
         case 'assistOff':
           setAssistMode(fc, 'off');
           break;
+        case 'assistPrograde':
+          setAssistMode(fc, 'prograde');
+          break;
+        case 'assistRetrograde':
+          setAssistMode(fc, 'retrograde');
+          break;
+        case 'toggleFlightAssist':
+          fc.fa = !fc.fa;
+          settings.fa = fc.fa;
+          saveSettings(settings);
+          break;
+        case 'toggleReverse':
+          // Switching direction cuts thrust; the lever must move to drive the throttle again.
+          controls.reverse = !controls.reverse;
+          controls.throttle = 0;
+          arbiter.leverActive = false;
+          arbiter.lastApplied = null;
+          break;
         case 'switchCamera':
           rig.toggle();
           break;
@@ -180,6 +203,7 @@ async function main(): Promise<void> {
           copyBodyState(ship.body, previous);
           setAssistMode(fc, fc.mode);
           controls.throttle = 0;
+          controls.reverse = false;
           // The lever must move before it drives the throttle again.
           arbiter.leverActive = false;
           arbiter.lastApplied = null;
@@ -198,6 +222,7 @@ async function main(): Promise<void> {
       renderPosition,
       rig.camera.position,
       ship.appliedThrottle,
+      ship.appliedRetro,
       ship.appliedRcs,
       settings.dust,
       now / 1000,
@@ -220,9 +245,13 @@ async function main(): Promise<void> {
         yawRate: -w.y * RAD_TO_DEG,
         rollRate: -w.z * RAD_TO_DEG,
         throttle: controls.throttle,
-        mainPropellantFraction: ship.mainPropellant / placeholderSpaceplane.mainPropellantCapacity,
-        rcsPropellantFraction: ship.rcsPropellant / placeholderSpaceplane.rcsPropellantCapacity,
+        mainPropellantFraction: ship.mainPropellant / placeholderSpacecraft.mainPropellantCapacity,
+        rcsPropellantFraction: ship.rcsPropellant / placeholderSpacecraft.rcsPropellantCapacity,
         deltaV: mainDeltaV(ship),
+        stopMain: ship.body.velocity.length() / engineAcceleration(ship, 'main'),
+        stopRetro: ship.body.velocity.length() / engineAcceleration(ship, 'retro'),
+        fa: fc.fa,
+        reverse: controls.reverse,
         assist: fc.mode,
         camera: rig.mode,
         targetDistance,

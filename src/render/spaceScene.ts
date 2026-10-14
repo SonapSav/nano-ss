@@ -2,7 +2,7 @@ import {
   AdditiveBlending,
   AmbientLight,
   BoxGeometry,
-  CapsuleGeometry,
+  ConeGeometry,
   Color,
   CylinderGeometry,
   DirectionalLight,
@@ -75,47 +75,82 @@ function createBeacons(blink: Brightness) {
   }).sprite;
 }
 
-/** Greybox spaceplane, about 9 m long and 7 m span; nose toward -Z. */
+/**
+ * Greybox spacecraft (D-043): about 9 m long, no wings. Nose toward -Z, main
+ * engine at the tail, landing legs at the tail for vertical landings, two
+ * retro nozzles at the nose (D-042), and side RCS pods for roll.
+ */
 function createShipModel() {
-  const hull = new MeshStandardMaterial({ color: 0xd8dade, metalness: 0.25, roughness: 0.55 });
+  const hull = new MeshStandardMaterial({ color: 0xd8dade, metalness: 0.3, roughness: 0.5 });
   const dark = new MeshStandardMaterial({ color: 0x2a2d33, metalness: 0.4, roughness: 0.6 });
   const ship = new Group();
+  const alongZ = (mesh: Mesh) => {
+    mesh.rotation.x = Math.PI / 2;
+    return mesh;
+  };
 
-  const fuselage = new Mesh(new CapsuleGeometry(0.9, 7, 6, 16), hull);
-  fuselage.rotation.x = Math.PI / 2;
-  ship.add(fuselage);
+  const body = alongZ(new Mesh(new CylinderGeometry(1.3, 1.4, 6.2, 8), hull));
+  body.position.z = 0.5;
+  ship.add(body);
 
-  const wings = new Mesh(new BoxGeometry(7, 0.12, 2.6), hull);
-  wings.position.set(0, -0.35, 1.6);
-  ship.add(wings);
+  const nose = new Mesh(new ConeGeometry(1.3, 2.2, 8).rotateX(-Math.PI / 2), hull);
+  nose.position.z = -3.7;
+  ship.add(nose);
 
-  for (const side of [-1, 1]) {
-    const fin = new Mesh(new BoxGeometry(0.1, 1.5, 1.6), hull);
-    fin.position.set(side * 1.7, 0.4, 2.4);
-    fin.rotation.z = side * -0.35;
-    ship.add(fin);
-  }
-
-  const windows = new Mesh(new BoxGeometry(0.9, 0.25, 0.9), dark);
-  windows.position.set(0, 0.62, -2.9);
+  const windows = new Mesh(new BoxGeometry(1.2, 0.3, 0.9), dark);
+  windows.position.set(0, 0.85, -3.1);
+  windows.rotation.x = -0.45;
   ship.add(windows);
 
-  const nozzle = new Mesh(new CylinderGeometry(0.35, 0.55, 0.7, 16, 1, true), dark);
-  nozzle.rotation.x = Math.PI / 2;
-  nozzle.position.set(0, 0, 4.7);
-  ship.add(nozzle);
+  const bell = alongZ(new Mesh(new CylinderGeometry(0.5, 0.9, 1.1, 16, 1, true), dark));
+  bell.position.z = 4.15;
+  ship.add(bell);
 
-  const glowMaterial = new MeshBasicMaterial({
-    color: 0xffa040,
-    transparent: true,
-    blending: AdditiveBlending,
-    depthWrite: false,
-  });
-  const engineGlow = new Mesh(new SphereGeometry(0.45, 16, 8), glowMaterial);
-  engineGlow.position.set(0, 0, 5.2);
+  for (const side of [-1, 1]) {
+    const retro = alongZ(new Mesh(new CylinderGeometry(0.16, 0.12, 0.5, 10, 1, true), dark));
+    retro.position.set(side * 0.75, 0, -3.35);
+    ship.add(retro);
+
+    const pod = new Mesh(new BoxGeometry(0.35, 0.35, 0.8), dark);
+    pod.position.set(side * 1.45, 0, 0.4);
+    ship.add(pod);
+  }
+
+  // Landing legs: struts from the hull out and back to footpads behind the engine.
+  for (let k = 0; k < 4; k++) {
+    const angle = Math.PI / 4 + (k * Math.PI) / 2;
+    const top = new Vector3(Math.cos(angle) * 1.3, Math.sin(angle) * 1.3, 2.4);
+    const foot = new Vector3(Math.cos(angle) * 2.5, Math.sin(angle) * 2.5, 5.0);
+    const strut = new Mesh(new CylinderGeometry(0.09, 0.09, top.distanceTo(foot), 6), dark);
+    strut.position.copy(top).add(foot).multiplyScalar(0.5);
+    strut.quaternion.setFromUnitVectors(new Vector3(0, 1, 0), foot.clone().sub(top).normalize());
+    ship.add(strut);
+    const pad = alongZ(new Mesh(new CylinderGeometry(0.35, 0.35, 0.08, 12), dark));
+    pad.position.copy(foot);
+    ship.add(pad);
+  }
+
+  const glow = (color: number) =>
+    new MeshBasicMaterial({
+      color,
+      transparent: true,
+      blending: AdditiveBlending,
+      depthWrite: false,
+    });
+  const glowMaterial = glow(0xffa040);
+  const engineGlow = new Mesh(new SphereGeometry(0.5, 16, 8), glowMaterial);
+  engineGlow.position.set(0, 0, 4.9);
   ship.add(engineGlow);
 
-  return { ship, engineGlow, glowMaterial };
+  const retroMaterial = glow(0xffb060);
+  const retroGlows = [-1, 1].map((side) => {
+    const g = new Mesh(new SphereGeometry(0.18, 12, 6), retroMaterial);
+    g.position.set(side * 0.75, 0, -3.75);
+    ship.add(g);
+    return g;
+  });
+
+  return { ship, engineGlow, glowMaterial, retroGlows, retroMaterial };
 }
 
 /**
@@ -147,7 +182,7 @@ export function createSpaceScene() {
   target.position.copy(TARGET_POSITION);
   worldRoot.add(target);
 
-  const { ship, engineGlow, glowMaterial } = createShipModel();
+  const { ship, engineGlow, glowMaterial, retroGlows, retroMaterial } = createShipModel();
   const plumes = createRcsPlumes();
   ship.add(plumes.group);
   scene.add(ship);
@@ -162,6 +197,7 @@ export function createSpaceScene() {
       shipWorldPosition: Vector3,
       cameraPosition: Vector3,
       throttle: number,
+      retro: number,
       rcs: { rotation: Vector3; translation: Vector3 },
       showDust: boolean,
       timeSeconds: number,
@@ -173,6 +209,11 @@ export function createSpaceScene() {
       engineGlow.visible = throttle > 0.001;
       engineGlow.scale.set(0.6 + throttle * 0.6, 0.6 + throttle * 0.6, 1 + throttle * 3);
       glowMaterial.opacity = 0.35 + throttle * 0.65;
+      for (const g of retroGlows) {
+        g.visible = retro > 0.001;
+        g.scale.set(0.7 + retro * 0.5, 0.7 + retro * 0.5, 1 + retro * 4);
+      }
+      retroMaterial.opacity = 0.35 + retro * 0.65;
       plumes.update(rcs.rotation, rcs.translation, 0.85 + 0.15 * Math.sin(timeSeconds * 60));
       dust.sprite.visible = showDust;
       if (showDust) dust.update(shipWorldPosition);

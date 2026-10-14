@@ -141,3 +141,22 @@ body {
   min-height: 1.4em;
   color: #ffd27a;
 }
+
+.hud-edge {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 18px;
+}
+
+.hud-edge-arrow {
+  display: inline-block;
+  font-size: 16px;
+}
+
+.hud-edge.retrograde,
+.hud-marker.retrograde {
+  color: #e8c98f;
+}

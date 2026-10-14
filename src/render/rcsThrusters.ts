@@ -15,27 +15,30 @@ export interface Thruster {
 }
 
 /**
- * Thruster layout for the greybox spaceplane (nose at -Z): quads at the nose
- * and tail for pitch, yaw, and translation, fore and aft jets for forward and
- * back, and wingtip jets for roll.
+ * Thruster layout for the greybox spacecraft (nose at -Z): quads at the front
+ * and rear of the hull for pitch, yaw, and translation, a nose jet for moving
+ * back, tail jets for moving forward, and side pods for roll.
  */
 export const THRUSTERS: readonly Thruster[] = (() => {
   const list: Thruster[] = [];
   const add = (p: [number, number, number], d: [number, number, number]) => {
     list.push({ position: new Vector3(...p), exhaust: new Vector3(...d) });
   };
-  for (const z of [-3.9, 3.9]) {
-    add([0, 0.95, z], [0, 1, 0]);
-    add([0, -0.95, z], [0, -1, 0]);
-    add([0.95, 0, z], [1, 0, 0]);
-    add([-0.95, 0, z], [-1, 0, 0]);
+  for (const [z, r] of [
+    [-2.6, 1.3],
+    [3.4, 1.4],
+  ] as const) {
+    add([0, r, z], [0, 1, 0]);
+    add([0, -r, z], [0, -1, 0]);
+    add([r, 0, z], [1, 0, 0]);
+    add([-r, 0, z], [-1, 0, 0]);
   }
-  add([0, 0.55, -4.4], [0, 0, -1]); // nose, fires to move back
-  add([0.6, 0.3, 4.4], [0, 0, 1]); // tail, fires to move forward (beside the main engine)
-  add([-0.6, 0.3, 4.4], [0, 0, 1]);
-  for (const x of [-3.4, 3.4]) {
-    add([x, -0.3, 1.6], [0, 1, 0]);
-    add([x, -0.3, 1.6], [0, -1, 0]);
+  add([0, 0.3, -4.4], [0, 0, -1]); // nose, fires to move back
+  add([0.9, 0.6, 3.6], [0, 0, 1]); // tail, fires to move forward (beside the main engine)
+  add([-0.9, 0.6, 3.6], [0, 0, 1]);
+  for (const x of [-1.6, 1.6]) {
+    add([x, 0.2, 0.4], [0, 1, 0]);
+    add([x, -0.2, 0.4], [0, -1, 0]);
   }
   return list;
 })();
@@ -43,8 +46,8 @@ export const THRUSTERS: readonly Thruster[] = (() => {
 const _force = new Vector3();
 const _torque = new Vector3();
 
-/** Lever arm of the nose and tail quads (m): torque that counts as full turning effort. */
-const LEVER_REF = 3.9;
+/** Typical lever arm of the front and rear quads (m): torque that counts as full turning effort. */
+const LEVER_REF = 3;
 /** Thrusters adding less than this share of turning effort stay off, as real RCS logic would keep them. */
 const MIN_TURN = 0.3;
 

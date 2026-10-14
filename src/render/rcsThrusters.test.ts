@@ -26,10 +26,10 @@ describe('thrusterIntensity', () => {
     expect(on.find((t) => t.position.z > 0)?.exhaust.y).toBe(1);
   });
 
-  it('rolls with the wingtip jets', () => {
+  it('rolls with the side pod jets', () => {
     const on = firing(new Vector3(0, 0, 1), none);
     expect(on.length).toBeGreaterThan(0);
-    expect(on.every((t) => Math.abs(t.position.x) > 3)).toBe(true);
+    expect(on.every((t) => Math.abs(t.position.x) > 1.5)).toBe(true);
   });
 
   it('fires nothing with no command', () => {
