@@ -44,6 +44,7 @@ Decided:
 
 - **Collisions:** custom contact checks behind a replaceable interface (D-017)
 - **Atmospheres:** full aerodynamics and re-entry heating, spaceplane-style runway landings (D-014)
+- **Ship:** one spaceplane: runway takeoff and landing where there is air, vertical landing and takeoff on thrusters on airless bodies (D-019)
 
 ## Hardware Baseline
 
@@ -83,15 +84,16 @@ nano-ss/
 
 Items discussed but not yet decided. Each entry records when it was raised, who owns the decision, and the actions expected from them. When an item is decided, move it to **Resolved Decisions** with the outcome and date.
 
+_None currently._
+
+## Resolved Decisions
+
 ### D-019: Landing on airless bodies and leaving Earth
 
 - **Raised:** 2026-10-14
+- **Decided:** 2026-10-14
 - **Owner:** Panos
-- **Status:** Open
-- **Context:** The ship is a spaceplane (D-014), but the first stage lands on the Moon, which has no air, so wings give no lift there and a glide landing is impossible. Leaving Earth's surface raises the same question in reverse. Options: (a) one spaceplane with vertical landing thrusters for airless bodies (Moon gravity is 1/6 of Earth's, so landing on thrusters is realistic), runway landings where there is air; (b) separate craft: the spaceplane for Earth and a lander for the Moon, docking with each other in orbit. Recommendation: (a), one ship. Also to decide: takeoff from Earth spacedromes, either horizontal from the runway with rocket engines, or vertical on thrusters.
-- **Action expected (Panos):** Choose (a) or (b), and the Earth takeoff style.
-
-## Resolved Decisions
+- **Outcome:** One spaceplane for all bodies. Where there is air, it lands on a runway (D-014); on airless bodies such as the Moon, it lands and takes off vertically on thrusters, so airless spacedromes have landing pads. From Earth, it takes off horizontally from the runway using rocket engines and climbs to orbit.
 
 ### D-014: Atmospheric flight
 
@@ -228,7 +230,7 @@ Items discussed but not yet decided. Each entry records when it was raised, who 
 - [x] Initialize repository
 - [x] Define purpose (2026-10-14)
 - [x] Choose universe and scale: real solar system (2026-10-14)
-- [ ] Settle remaining decisions (D-019)
+- [x] Settle scope decisions (2026-10-14)
 - [ ] Choose tech stack
 - [ ] First working version
 
