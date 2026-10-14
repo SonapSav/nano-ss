@@ -6,7 +6,7 @@ export HOST_GID := $(shell id -g)
 COMPOSE := docker compose
 RUN     := $(COMPOSE) run --rm dev
 
-.PHONY: help certs dev install check lint typecheck test format build up down logs shell
+.PHONY: help certs dev install check lint typecheck test format build up down logs shell scenery
 
 help: ## Show this list
 	@grep -E '^[a-z]+:.*## ' $(MAKEFILE_LIST) | awk -F ':.*## ' '{printf "  make %-10s %s\n", $$1, $$2}'
@@ -36,6 +36,9 @@ test: ## Run unit tests
 
 format: ## Format the code with Prettier
 	$(RUN) pnpm format
+
+scenery: ## Download and build game data (ephemerides, textures) into public/
+	$(RUN) node scripts/scenery/ephemeris.ts
 
 build: ## Build the production image
 	$(COMPOSE) build web
