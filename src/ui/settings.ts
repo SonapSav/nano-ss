@@ -2,10 +2,12 @@ import type { FrameRateMode } from './frameLimiter';
 
 export interface Settings {
   frameRate: FrameRateMode;
+  /** Motion reference dust around the ship (not physical; an aid to see drift). */
+  dust: boolean;
 }
 
 const STORAGE_KEY = 'nano-ss.settings';
-const DEFAULTS: Settings = { frameRate: 'cap-60' };
+const DEFAULTS: Settings = { frameRate: 'cap-60', dust: true };
 
 /** Loads settings; browser storage may be blocked, so failures fall back to defaults. */
 export function loadSettings(): Settings {
@@ -15,6 +17,7 @@ export function loadSettings(): Settings {
     const parsed = JSON.parse(raw) as Partial<Settings>;
     return {
       frameRate: parsed.frameRate === 'display' ? 'display' : 'cap-60',
+      dust: typeof parsed.dust === 'boolean' ? parsed.dust : DEFAULTS.dust,
     };
   } catch {
     return { ...DEFAULTS };
@@ -29,28 +32,12 @@ export function saveSettings(settings: Settings): void {
   }
 }
 
-const CONTROLS_HELP: [string, string][] = [
-  ['W / S', 'Pitch down / up'],
-  ['A / D', 'Yaw left / right'],
-  ['Q / E', 'Roll left / right'],
-  ['I / K', 'Translate up / down'],
-  ['J / L', 'Translate left / right'],
-  ['H / N', 'Translate forward / back'],
-  ['Shift / Ctrl', 'Throttle up / down'],
-  ['Z / X', 'Full throttle / cut'],
-  ['T', 'Assist: off, kill rotation, hold attitude'],
-  ['C', 'Chase / nose camera'],
-  ['Mouse drag, wheel', 'Orbit and zoom the chase camera'],
-  ['F', 'Fullscreen (also captures Ctrl key combos)'],
-  ['F3', 'Performance overlay'],
-  ['Esc', 'Pause and settings'],
-];
-
-/** Pause panel with the frame rate setting, fullscreen, and the controls list. */
+/** Pause panel with the frame rate setting, fullscreen, and the controls section. */
 export function createSettingsPanel(
   parent: HTMLElement,
   settings: Settings,
   handlers: { onChange: (s: Settings) => void; onFullscreen: () => void },
+  controls: HTMLElement,
 ) {
   const panel = document.createElement('div');
   panel.className = 'panel';
@@ -79,22 +66,39 @@ export function createSettingsPanel(
   });
   rateLabel.appendChild(rate);
 
+  const dustLabel = document.createElement('label');
+  const dust = document.createElement('input');
+  dust.type = 'checkbox';
+  dust.checked = settings.dust;
+  dust.addEventListener('change', () => {
+    settings.dust = dust.checked;
+    saveSettings(settings);
+    handlers.onChange(settings);
+  });
+  dustLabel.append(dust, ' Motion reference dust (an aid to see drift; not physical)');
+
   const fullscreen = document.createElement('button');
   fullscreen.type = 'button';
   fullscreen.textContent = 'Fullscreen';
   fullscreen.addEventListener('click', handlers.onFullscreen);
 
-  const help = document.createElement('table');
-  for (const [keys, action] of CONTROLS_HELP) {
-    const row = help.insertRow();
-    row.insertCell().textContent = keys;
-    row.insertCell().textContent = action;
-  }
+  const mouse = document.createElement('p');
+  mouse.textContent = 'Mouse drag orbits the chase camera; the wheel zooms.';
 
   const hint = document.createElement('p');
   hint.textContent = 'Esc to resume';
 
-  panel.append(title, rateLabel, fullscreen, help, hint);
+  panel.append(
+    title,
+    rateLabel,
+    document.createElement('br'),
+    dustLabel,
+    document.createElement('br'),
+    fullscreen,
+    mouse,
+    controls,
+    hint,
+  );
   parent.appendChild(panel);
 
   return {

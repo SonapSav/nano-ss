@@ -7,20 +7,16 @@ import {
   CylinderGeometry,
   DirectionalLight,
   Group,
-  InstancedBufferAttribute,
   Mesh,
   MeshBasicMaterial,
   MeshStandardMaterial,
-  PointsNodeMaterial,
   Scene,
   SphereGeometry,
-  Sprite,
   Vector3,
 } from 'three/webgpu';
-import { instancedBufferAttribute, uniform } from 'three/tsl';
-
-const createBrightness = () => uniform(1);
-type Brightness = ReturnType<typeof createBrightness>;
+import { createBrightness, createPointCloud, type Brightness } from './pointCloud';
+import { createRcsPlumes } from './rcsThrusters';
+import { createSpaceDust } from './spaceDust';
 
 /** Target box position in world coordinates (m): 2 km ahead of the start point. */
 export const TARGET_POSITION = new Vector3(0, 0, -2000);
@@ -34,37 +30,6 @@ function mulberry32(seed: number) {
     t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
-}
-
-/**
- * Screen-sized points (WebGPU points are 1 px natively, so three.js draws
- * them as an instanced Sprite with PointsNodeMaterial).
- */
-function createPointCloud(
-  positions: Float32Array,
-  colors: Float32Array,
-  sizes: Float32Array,
-  brightness: Brightness = createBrightness(),
-) {
-  const material = new PointsNodeMaterial({
-    transparent: true,
-    depthWrite: false,
-    blending: AdditiveBlending,
-    sizeAttenuation: false,
-  });
-  material.positionNode = instancedBufferAttribute(
-    new InstancedBufferAttribute(positions, 3),
-    'vec3',
-  );
-  material.colorNode = instancedBufferAttribute<'vec3'>(
-    new InstancedBufferAttribute(colors, 3),
-    'vec3',
-  ).mul(brightness);
-  material.sizeNode = instancedBufferAttribute(new InstancedBufferAttribute(sizes, 1), 'float');
-  const sprite = new Sprite(material);
-  sprite.count = sizes.length;
-  sprite.frustumCulled = false;
-  return sprite;
 }
 
 /** Procedural starfield at "infinity"; the real star catalogue comes in Stage 3. */
@@ -86,7 +51,7 @@ function createStars(count: number, radius: number) {
     colors.set([tint.r * brightness, tint.g * brightness, tint.b * brightness], i * 3);
     sizes[i] = brightness > 0.6 ? 3 : brightness > 0.25 ? 2 : 1.5;
   }
-  const stars = createPointCloud(positions, colors, sizes);
+  const { sprite: stars } = createPointCloud(positions, colors, sizes);
   stars.renderOrder = -1;
   return stars;
 }
@@ -105,7 +70,9 @@ function createBeacons(blink: Brightness) {
   const count = points.length / 3;
   const colors = new Float32Array(count * 3);
   for (let i = 0; i < count; i++) colors.set([1, 0.6, 0.15], i * 3);
-  return createPointCloud(new Float32Array(points), colors, new Float32Array(count).fill(4), blink);
+  return createPointCloud(new Float32Array(points), colors, new Float32Array(count).fill(4), {
+    brightness: blink,
+  }).sprite;
 }
 
 /** Greybox spaceplane, about 9 m long and 7 m span; nose toward -Z. */
@@ -181,7 +148,12 @@ export function createSpaceScene() {
   worldRoot.add(target);
 
   const { ship, engineGlow, glowMaterial } = createShipModel();
+  const plumes = createRcsPlumes();
+  ship.add(plumes.group);
   scene.add(ship);
+
+  const dust = createSpaceDust();
+  scene.add(dust.sprite);
 
   return {
     scene,
@@ -190,6 +162,8 @@ export function createSpaceScene() {
       shipWorldPosition: Vector3,
       cameraPosition: Vector3,
       throttle: number,
+      rcs: { rotation: Vector3; translation: Vector3 },
+      showDust: boolean,
       timeSeconds: number,
     ) {
       // 64-bit subtraction happens here, on the CPU, before anything reaches the GPU.
@@ -199,6 +173,9 @@ export function createSpaceScene() {
       engineGlow.visible = throttle > 0.001;
       engineGlow.scale.set(0.6 + throttle * 0.6, 0.6 + throttle * 0.6, 1 + throttle * 3);
       glowMaterial.opacity = 0.35 + throttle * 0.65;
+      plumes.update(rcs.rotation, rcs.translation, 0.85 + 0.15 * Math.sin(timeSeconds * 60));
+      dust.sprite.visible = showDust;
+      if (showDust) dust.update(shipWorldPosition);
     },
   };
 }

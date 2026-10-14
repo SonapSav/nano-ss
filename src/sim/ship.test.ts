@@ -1,6 +1,6 @@
 import { Vector3 } from 'three/webgpu';
 import { describe, expect, it } from 'vitest';
-import { createShip, G0, mainDeltaV, shipMass, stepShip, type RcsCommand } from './ship';
+import { createShip, G0, mainDeltaV, resetShip, shipMass, stepShip, type RcsCommand } from './ship';
 import { placeholderSpaceplane } from './ships/placeholderSpaceplane';
 
 const DT = 1 / 120;
@@ -43,5 +43,18 @@ describe('stepShip', () => {
     for (let i = 0; i < 120; i++) stepShip(ship, 0, rcs, DT);
     expect(ship.body.velocity.x).toBeCloseTo(placeholderSpaceplane.rcs.force / mass, 3);
     expect(ship.rcsPropellant).toBeLessThan(placeholderSpaceplane.rcsPropellantCapacity);
+  });
+
+  it('reset refills the tanks and returns the ship to the start at rest', () => {
+    const ship = createShip(placeholderSpaceplane);
+    const rcs = noRcs();
+    rcs.rotation.set(1, 0, 0);
+    rcs.translation.set(0, 1, 0);
+    for (let i = 0; i < 600; i++) stepShip(ship, 1, rcs, DT);
+    resetShip(ship);
+    const fresh = createShip(placeholderSpaceplane);
+    expect(ship.body).toEqual(fresh.body);
+    expect(ship.mainPropellant).toBe(fresh.mainPropellant);
+    expect(ship.rcsPropellant).toBe(fresh.rcsPropellant);
   });
 });

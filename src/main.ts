@@ -1,7 +1,9 @@
 import './style.css';
 import { Quaternion, Vector3 } from 'three/webgpu';
-import { DEFAULT_BINDINGS } from './input/bindings';
+import { addGamepad, createThrottleArbiter } from './input/combine';
+import { GamepadInput, type GamepadFrame } from './input/gamepad/gamepadInput';
 import { KeyboardInput, applyKeyboard } from './input/keyboard';
+import { calibrationFor, loadInputSettings } from './input/storage';
 import { describeGpu, formatGpuReport } from './platform/gpuInfo';
 import { browserWorkerBudget, workerOverrideFromUrl } from './platform/workerBudget';
 import { CameraRig } from './render/cameras';
@@ -10,10 +12,12 @@ import { TARGET_POSITION, createSpaceScene } from './render/spaceScene';
 import { createControlState, nextAssistMode } from './sim/controls';
 import { computeRcs, createFlightComputer, setAssistMode } from './sim/flightComputer';
 import { copyBodyState, createBodyState } from './sim/rigidBody';
-import { createShip, mainDeltaV, stepShip, type RcsCommand } from './sim/ship';
+import { createShip, mainDeltaV, resetShip, stepShip, type RcsCommand } from './sim/ship';
 import { placeholderSpaceplane } from './sim/ships/placeholderSpaceplane';
 import { FixedStepLoop } from './sim/simLoop';
 import { FrameLimiter } from './ui/frameLimiter';
+import { createControlsPanel } from './ui/controlsPanel';
+import { createGamepadDebug, gamepadDebugEnabled } from './ui/gamepadDebug';
 import { createHud } from './ui/hud';
 import { createSettingsPanel, loadSettings } from './ui/settings';
 import { createStatsOverlay } from './ui/statsOverlay';
@@ -21,6 +25,8 @@ import { createStatsOverlay } from './ui/statsOverlay';
 /** Memory budget per scenery worker until real scenery work defines one. */
 const PER_WORKER_MB = 512;
 const RAD_TO_DEG = 180 / Math.PI;
+/** Body axes have -Z forward; the HUD shows forward as positive. */
+const FLIP_Z = new Vector3(1, 1, -1);
 
 async function toggleFullscreen(): Promise<void> {
   if (document.fullscreenElement) {
@@ -58,13 +64,19 @@ async function main(): Promise<void> {
   const fc = createFlightComputer('off');
   const controls = createControlState();
   const rcs: RcsCommand = { rotation: new Vector3(), translation: new Vector3() };
-  const keyboard = new KeyboardInput(window, DEFAULT_BINDINGS);
+  const inputSettings = loadInputSettings();
+  const keyboard = new KeyboardInput(window, inputSettings.keyboard);
+  const gamepad = new GamepadInput(inputSettings.profiles, (p) => calibrationFor(inputSettings, p));
+  const arbiter = createThrottleArbiter();
+  // Polled once per rendered frame; the physics steps use the latest reading.
+  let pad: GamepadFrame = { device: null, axes: {} };
   const previous = createBodyState();
   copyBodyState(ship.body, previous);
 
   const loop = new FixedStepLoop((dt) => {
     copyBodyState(ship.body, previous);
-    applyKeyboard(keyboard.held, DEFAULT_BINDINGS, controls, dt);
+    applyKeyboard(keyboard.held, keyboard.bindings, controls, dt);
+    addGamepad(controls, pad, arbiter);
     computeRcs(fc, ship, controls, rcs);
     stepShip(ship, controls.throttle, rcs, dt);
   });
@@ -74,12 +86,24 @@ async function main(): Promise<void> {
   const rig = new CameraRig(window.innerWidth / window.innerHeight);
   rig.attach(canvas);
   const hud = createHud(document.body);
+  const gamepadDebug = gamepadDebugEnabled(location.search)
+    ? createGamepadDebug(document.body)
+    : null;
   const settings = loadSettings();
   const limiter = new FrameLimiter(settings.frameRate);
-  const panel = createSettingsPanel(document.body, settings, {
-    onChange: (s) => (limiter.mode = s.frameRate),
-    onFullscreen: () => void toggleFullscreen(),
+  const controlsPanel = createControlsPanel(inputSettings, (s) => {
+    keyboard.setBindings(s.keyboard);
+    gamepad.profiles = s.profiles;
   });
+  const panel = createSettingsPanel(
+    document.body,
+    settings,
+    {
+      onChange: (s) => (limiter.mode = s.frameRate),
+      onFullscreen: () => void toggleFullscreen(),
+    },
+    controlsPanel.element,
+  );
 
   const resize = () => {
     renderer.setSize(window.innerWidth, window.innerHeight, false);
@@ -98,12 +122,15 @@ async function main(): Promise<void> {
   const setPaused = (paused: boolean) => {
     loop.paused = paused;
     panel.show(paused);
+    if (!paused) controlsPanel.cancel();
   };
 
   const renderPosition = new Vector3();
   const renderOrientation = new Quaternion();
   const forward = new Vector3();
   const toTarget = new Vector3();
+  const velocityShip = new Vector3();
+  const inverseOrientation = new Quaternion();
   let statsVisible = true;
   let last = performance.now();
 
@@ -112,7 +139,10 @@ async function main(): Promise<void> {
     const elapsed = (now - last) / 1000;
     last = now;
 
-    for (const action of keyboard.takeActions()) {
+    pad = gamepad.poll();
+    if (loop.paused) controlsPanel.update();
+
+    for (const action of [...keyboard.takeActions(), ...gamepad.takeActions()]) {
       switch (action) {
         case 'throttleFull':
           controls.throttle = 1;
@@ -122,6 +152,15 @@ async function main(): Promise<void> {
           break;
         case 'cycleAssist':
           setAssistMode(fc, nextAssistMode(fc.mode));
+          break;
+        case 'assistKill':
+          setAssistMode(fc, 'kill-rotation');
+          break;
+        case 'assistHold':
+          setAssistMode(fc, 'hold-attitude');
+          break;
+        case 'assistOff':
+          setAssistMode(fc, 'off');
           break;
         case 'switchCamera':
           rig.toggle();
@@ -136,6 +175,15 @@ async function main(): Promise<void> {
         case 'fullscreen':
           void toggleFullscreen();
           break;
+        case 'resetShip':
+          resetShip(ship);
+          copyBodyState(ship.body, previous);
+          setAssistMode(fc, fc.mode);
+          controls.throttle = 0;
+          // The lever must move before it drives the throttle again.
+          arbiter.leverActive = false;
+          arbiter.lastApplied = null;
+          break;
       }
     }
 
@@ -146,7 +194,14 @@ async function main(): Promise<void> {
 
     world.ship.quaternion.copy(renderOrientation);
     rig.update(renderOrientation, loop.paused ? 0 : elapsed);
-    world.update(renderPosition, rig.camera.position, ship.appliedThrottle, now / 1000);
+    world.update(
+      renderPosition,
+      rig.camera.position,
+      ship.appliedThrottle,
+      ship.appliedRcs,
+      settings.dust,
+      now / 1000,
+    );
 
     const w = ship.body.angularVelocity;
     const rcsActive =
@@ -156,6 +211,10 @@ async function main(): Promise<void> {
     hud.update(
       {
         velocity: ship.body.velocity,
+        velocityShip: velocityShip
+          .copy(ship.body.velocity)
+          .applyQuaternion(inverseOrientation.copy(ship.body.orientation).invert())
+          .multiply(FLIP_Z),
         forward: forward.set(0, 0, -1).applyQuaternion(renderOrientation),
         pitchRate: w.x * RAD_TO_DEG,
         yawRate: -w.y * RAD_TO_DEG,
@@ -170,11 +229,14 @@ async function main(): Promise<void> {
         closingSpeed: targetDistance > 0 ? ship.body.velocity.dot(toTarget) / targetDistance : 0,
         rcsActive,
         paused: loop.paused,
+        inputDevice: pad.device,
+        throttleSource: arbiter.leverActive ? 'lever' : 'keyboard',
       },
       rig.camera,
       now,
     );
 
+    gamepadDebug?.update(now);
     renderer.render(world.scene, rig.camera);
     stats.frame(now);
   });

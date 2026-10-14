@@ -5,6 +5,8 @@ import type { CameraMode } from '../render/cameras';
 export interface HudData {
   /** Ship velocity in the inertial frame (m/s). */
   velocity: Vector3;
+  /** The same velocity along the ship's own axes: x right, y up, z forward (m/s). */
+  velocityShip: Vector3;
   /** Ship forward direction in world space (unit). */
   forward: Vector3;
   /** Angular rates in pilot terms, deg/s. */
@@ -21,6 +23,9 @@ export interface HudData {
   closingSpeed: number;
   rcsActive: boolean;
   paused: boolean;
+  /** Name of the connected gamepad profile, or null for keyboard only. */
+  inputDevice: string | null;
+  throttleSource: 'lever' | 'keyboard';
 }
 
 const ASSIST_LABEL: Record<AssistMode, string> = {
@@ -40,6 +45,7 @@ export function formatDistance(metres: number): string {
   return metres >= 1000 ? `${(metres / 1000).toFixed(2)} km` : `${metres.toFixed(0)} m`;
 }
 
+const signed = (v: number) => `${v >= 0 ? '+' : ''}${v.toFixed(2)}`;
 const pct = (fraction: number) => `${(fraction * 100).toFixed(0)}%`;
 const rate = (degPerSecond: number) => `${degPerSecond >= 0 ? '+' : ''}${degPerSecond.toFixed(2)}`;
 
@@ -99,13 +105,15 @@ export function createHud(parent: HTMLElement) {
       lastText = nowMs;
       text.textContent = [
         `SPEED    ${formatSpeed(speed)}`,
+        `VEL      fwd ${signed(data.velocityShip.z)}  right ${signed(data.velocityShip.x)}  up ${signed(data.velocityShip.y)} m/s`,
         `TARGET   ${formatDistance(data.targetDistance)}  closing ${formatSpeed(data.closingSpeed)}`,
         `RATES    P ${rate(data.pitchRate)}  Y ${rate(data.yawRate)}  R ${rate(data.rollRate)} °/s`,
-        `THROTTLE ${pct(data.throttle)}`,
+        `THROTTLE ${pct(data.throttle)}${data.inputDevice && data.throttleSource === 'lever' ? '  (lever)' : ''}`,
         `MAIN     ${pct(data.mainPropellantFraction)}  Δv ${formatSpeed(data.deltaV)}`,
         `RCS      ${pct(data.rcsPropellantFraction)}${data.rcsActive ? '  firing' : ''}`,
         `ASSIST   ${ASSIST_LABEL[data.assist]}`,
         `CAMERA   ${data.camera.toUpperCase()}`,
+        `INPUT    ${data.inputDevice ? `keyboard + ${data.inputDevice}` : 'keyboard (press a HOTAS button to connect it)'}`,
       ].join('\n');
     },
   };

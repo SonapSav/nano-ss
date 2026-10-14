@@ -59,6 +59,20 @@ export function createShip(config: ShipConfig): Ship {
   };
 }
 
+/** Refills both tanks and puts the ship back at the start, at rest (temporary, D-039). */
+export function resetShip(ship: Ship): void {
+  const fresh = createShip(ship.config);
+  ship.body.position.copy(fresh.body.position);
+  ship.body.velocity.copy(fresh.body.velocity);
+  ship.body.orientation.copy(fresh.body.orientation);
+  ship.body.angularVelocity.copy(fresh.body.angularVelocity);
+  ship.mainPropellant = fresh.mainPropellant;
+  ship.rcsPropellant = fresh.rcsPropellant;
+  ship.appliedThrottle = 0;
+  ship.appliedRcs.rotation.set(0, 0, 0);
+  ship.appliedRcs.translation.set(0, 0, 0);
+}
+
 export function shipMass(ship: Ship): number {
   return ship.config.dryMass + ship.mainPropellant + ship.rcsPropellant;
 }

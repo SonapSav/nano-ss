@@ -98,3 +98,46 @@ body {
   color: #8fe8b0;
   font-family: ui-monospace, monospace;
 }
+
+.gamepad-debug {
+  position: fixed;
+  top: 8px;
+  right: 8px;
+  margin: 0;
+  padding: 8px 12px;
+  font:
+    12px/1.4 ui-monospace,
+    monospace;
+  color: #e8e8a0;
+  background: rgb(0 0 0 / 80%);
+  border: 1px solid #554;
+  border-radius: 4px;
+  pointer-events: none;
+}
+
+.panel {
+  max-height: 90vh;
+  overflow-y: auto;
+  pointer-events: auto;
+}
+
+.panel h3 {
+  margin: 12px 0 4px;
+  font-size: 14px;
+}
+
+.controls-columns {
+  display: flex;
+  gap: 32px;
+  align-items: flex-start;
+}
+
+.controls button {
+  min-width: 80px;
+  margin: 1px 0;
+}
+
+.controls-status {
+  min-height: 1.4em;
+  color: #ffd27a;
+}
