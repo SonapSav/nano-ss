@@ -50,7 +50,7 @@ export const PRESS_ACTIONS: readonly PressAction[] = [
 
 export const PRESS_ACTION_LABELS: Record<PressAction, string> = {
   throttleFull: 'Full throttle',
-  throttleCut: 'Cut throttle',
+  throttleCut: 'Cut throttle / stop',
   cycleAssist: 'Cycle assist mode',
   assistKill: 'Assist: kill rotation',
   assistHold: 'Assist: hold attitude',

@@ -3,11 +3,32 @@ import type { AssistMode } from '../sim/controls';
 import type { CameraMode } from '../render/cameras';
 import { edgeMarkerPosition } from './edgeMarker';
 
+/** Orbit around the reference body, for the HUD. */
+export interface HudOrbit {
+  body: string;
+  altitude: number;
+  apoapsisAltitude: number;
+  periapsisAltitude: number;
+  period: number;
+  inclination: number;
+  timeToApoapsis: number;
+  timeToPeriapsis: number;
+}
+
 export interface HudData {
-  /** Ship velocity in the inertial frame (m/s). */
+  /** Velocity relative to the body being orbited (m/s): ⊕ and ⊗ follow it. */
   velocity: Vector3;
-  /** The same velocity along the ship's own axes: x right, y up, z forward (m/s). */
+  /** Velocity relative to the target along the ship's own axes: x right, y up, z forward (m/s). */
   velocityShip: Vector3;
+  /** Speed relative to the target (m/s): what the STOP hint is about. */
+  targetSpeed: number;
+  orbit: HudOrbit;
+  /** Unit direction to the Moon, and its distance (m). */
+  moonDirection: Vector3;
+  moonDistance: number;
+  simDate: Date;
+  /** Hazard or other message shown in the middle of the screen, or null. */
+  alert: string | null;
   /** Ship forward direction in world space (unit). */
   forward: Vector3;
   /** Angular rates in pilot terms, deg/s. */
@@ -22,6 +43,8 @@ export interface HudData {
   stopMain: number;
   stopRetro: number;
   fa: boolean;
+  /** Cruise speed FA holds near a target (m/s), or null (D-045). */
+  cruise: number | null;
   reverse: boolean;
   assist: AssistMode;
   camera: CameraMode;
@@ -56,6 +79,17 @@ export function formatDistance(metres: number): string {
 }
 
 const signed = (v: number) => `${v >= 0 ? '+' : ''}${v.toFixed(2)}`;
+const km = (m: number) => (Number.isFinite(m) ? `${(m / 1000).toFixed(1)} km` : 'escape');
+/** Compact duration: 45 s, 12m 30s, 3h 05m, 2d 04h; dash when undefined. */
+export function duration(s: number): string {
+  if (!Number.isFinite(s)) return '—';
+  const t = Math.round(s);
+  if (t < 60) return `${String(t)} s`;
+  if (t < 3600) return `${String(Math.floor(t / 60))}m ${String(t % 60).padStart(2, '0')}s`;
+  if (t < 86_400)
+    return `${String(Math.floor(t / 3600))}h ${String(Math.floor((t % 3600) / 60)).padStart(2, '0')}m`;
+  return `${String(Math.floor(t / 86_400))}d ${String(Math.floor((t % 86_400) / 3600)).padStart(2, '0')}h`;
+}
 const seconds = (s: number) => (Number.isFinite(s) ? `${s.toFixed(0)} s` : '—');
 const pct = (fraction: number) => `${(fraction * 100).toFixed(0)}%`;
 const rate = (degPerSecond: number) => `${degPerSecond >= 0 ? '+' : ''}${degPerSecond.toFixed(2)}`;
@@ -87,6 +121,7 @@ export function createHud(parent: HTMLElement) {
   const prograde = marker('prograde', '⊕');
   const retrograde = marker('retrograde', '⊗');
   const target = marker('target', '◇');
+  const moonMarker = marker('moon', '☾');
   root.append(text, paused);
   parent.appendChild(root);
 
@@ -143,23 +178,30 @@ export function createHud(parent: HTMLElement) {
       place(prograde, velocityDir, camera, moving);
       place(retrograde, retroDir, camera, moving);
       place(target, data.targetDirection, camera, data.targetDistance > 1);
-      paused.hidden = !data.paused;
+      place(moonMarker, data.moonDirection, camera, true);
+      paused.hidden = !data.paused && data.alert === null;
+      paused.textContent = data.alert ?? 'PAUSED';
 
       // Text changes are throttled to 10 per second; markers move every frame.
       if (nowMs - lastText < 100) return;
       lastText = nowMs;
+      const o = data.orbit;
+      const ts = data.targetSpeed;
       text.textContent = [
-        `SPEED    ${formatSpeed(speed)}`,
-        `VEL      fwd ${signed(data.velocityShip.z)}  right ${signed(data.velocityShip.x)}  up ${signed(data.velocityShip.y)} m/s`,
+        `TIME     ${data.simDate.toISOString().slice(0, 19).replace('T', ' ')} UTC`,
+        `ORBIT    ${o.body}  ALT ${km(o.altitude)}  SPEED ${formatSpeed(speed)}`,
+        `         Ap ${km(o.apoapsisAltitude)} in ${duration(o.timeToApoapsis)} | Pe ${km(o.periapsisAltitude)} in ${duration(o.timeToPeriapsis)}`,
+        `         period ${duration(o.period)}  inc ${((o.inclination * 180) / Math.PI).toFixed(1)}°  Moon ${formatDistance(data.moonDistance)}`,
         `TARGET   ${formatDistance(data.targetDistance)}  closing ${formatSpeed(data.closingSpeed)}`,
+        `VEL      fwd ${signed(data.velocityShip.z)}  right ${signed(data.velocityShip.x)}  up ${signed(data.velocityShip.y)} m/s (to target)`,
         `RATES    P ${rate(data.pitchRate)}  Y ${rate(data.yawRate)}  R ${rate(data.rollRate)} °/s`,
         `THROTTLE ${pct(data.throttle)}${data.inputDevice && data.throttleSource === 'lever' ? '  (lever)' : ''}`,
         `MAIN     ${pct(data.mainPropellantFraction)}  Δv ${formatSpeed(data.deltaV)}`,
-        moving
-          ? `STOP     main ${seconds(data.stopMain)} | retro ${seconds(data.stopRetro)}  need Δv ${formatSpeed(speed)}${speed > data.deltaV ? '  NOT ENOUGH Δv' : ''}`
-          : 'STOP     at rest',
+        ts > 0.05
+          ? `STOP     to target: main ${seconds(data.stopMain)} | retro ${seconds(data.stopRetro)}  need Δv ${formatSpeed(ts)}${ts > data.deltaV ? '  NOT ENOUGH Δv' : ''}`
+          : 'STOP     matched with target',
         `RCS      ${pct(data.rcsPropellantFraction)}${data.rcsActive ? '  firing' : ''}`,
-        `ASSIST   ${ASSIST_LABEL[data.assist]}   FA ${data.fa ? 'ON' : 'OFF'}${data.reverse ? '   REVERSE' : ''}`,
+        `ASSIST   ${ASSIST_LABEL[data.assist]}   FA ${data.fa ? 'ON' : 'OFF'}${data.cruise ? `   CRUISE ${signed(data.cruise)} m/s` : ''}${data.reverse ? '   REVERSE' : ''}`,
         `CAMERA   ${data.camera.toUpperCase()}`,
         `INPUT    ${data.inputDevice ? `keyboard + ${data.inputDevice}` : 'keyboard (press a HOTAS button to connect it)'}`,
       ].join('\n');

@@ -8,11 +8,12 @@ import { describeGpu, formatGpuReport } from './platform/gpuInfo';
 import { browserWorkerBudget, workerOverrideFromUrl } from './platform/workerBudget';
 import { CameraRig } from './render/cameras';
 import { createRenderer } from './render/createRenderer';
-import { TARGET_POSITION, createSpaceScene } from './render/spaceScene';
+import { createSpaceScene } from './render/spaceScene';
 import { createControlState, nextAssistMode } from './sim/controls';
 import {
   computeCommands,
   createFlightCommands,
+  commandStop,
   createFlightComputer,
   setAssistMode,
 } from './sim/flightComputer';
@@ -26,6 +27,10 @@ import { createGamepadDebug, gamepadDebugEnabled } from './ui/gamepadDebug';
 import { createHud } from './ui/hud';
 import { createSettingsPanel, loadSettings, saveSettings } from './ui/settings';
 import { createStatsOverlay } from './ui/statsOverlay';
+import { Ephemeris } from './world/ephemeris';
+import { checkHazard, orbitElements, orientationFromForwardUp } from './world/orbit';
+import { SimClock, gmstRadians } from './world/time';
+import { TARGET_NEAR, World } from './world/world';
 
 /** Memory budget per scenery worker until real scenery work defines one. */
 const PER_WORKER_MB = 512;
@@ -64,6 +69,14 @@ async function main(): Promise<void> {
   console.info(`[nano-ss] GPU: ${formatGpuReport(gpu)}`);
   stats.setLabel(`${api} | workers ${String(workers.count)}`);
 
+  // World: real Moon and Sun positions from the JPL tables, clock at the real current time.
+  const [moonTable, sunTable] = await Promise.all([
+    Ephemeris.load('data/moon.ephem'),
+    Ephemeris.load('data/sun.ephem'),
+  ]);
+  const clock = SimClock.now();
+  const world = new World(clock, moonTable, sunTable);
+
   // Simulation.
   const ship = createShip(placeholderSpacecraft);
   const settings = loadSettings();
@@ -77,18 +90,57 @@ async function main(): Promise<void> {
   // Polled once per rendered frame; the physics steps use the latest reading.
   let pad: GamepadFrame = { device: null, axes: {} };
   const previous = createBodyState();
-  copyBodyState(ship.body, previous);
+  const previousTarget = new Vector3();
+  const orbitalVelocity = new Vector3();
+  const faReference = new Vector3();
+  let alert: string | null = null;
+
+  /** Ship and target back to the start: 400 km circular orbit in daylight, nose prograde, roof away from Earth. */
+  const placeAtStart = () => {
+    resetShip(ship);
+    const { ship: start, target } = world.startStates();
+    ship.body.position.copy(start.position);
+    ship.body.velocity.copy(start.velocity);
+    orientationFromForwardUp(start.velocity, start.position, ship.body.orientation);
+    world.target.position.copy(target.position);
+    world.target.velocity.copy(target.velocity);
+    copyBodyState(ship.body, previous);
+    previousTarget.copy(world.target.position);
+  };
+  placeAtStart();
 
   const loop = new FixedStepLoop((dt) => {
     copyBodyState(ship.body, previous);
+    previousTarget.copy(world.target.position);
     applyKeyboard(keyboard.held, keyboard.bindings, controls, dt);
     addGamepad(controls, pad, arbiter);
-    computeCommands(fc, ship, controls, commands);
-    stepShip(ship, commands.engines, commands.rcs, dt);
+
+    const reference = world.bodyState(world.referenceBody(ship.body.position));
+    orbitalVelocity.subVectors(ship.body.velocity, reference.velocity);
+    const nearTarget = ship.body.position.distanceTo(world.target.position) < TARGET_NEAR;
+    computeCommands(fc, ship, controls, commands, {
+      orbitalVelocity,
+      faReference: nearTarget ? world.targetFrameVelocity(ship.body.position, faReference) : null,
+    });
+
+    // Gravity looks the Moon up at each substep time, so step everything before advancing the clock.
+    stepShip(ship, commands.engines, commands.rcs, dt, { field: world.gravityField, t0: 0 });
+    world.stepTarget(dt);
+    clock.seconds += dt;
+    world.refresh();
+
+    const hazard = checkHazard(ship.body.position, world.moonPosition);
+    if (hazard) {
+      alert =
+        hazard.kind === 'burned-up'
+          ? "BURNED UP in Earth's atmosphere. Press R to reset."
+          : 'CRASHED into the Moon. Press R to reset.';
+      loop.paused = true;
+    }
   });
 
   // Presentation.
-  const world = createSpaceScene();
+  const scene = createSpaceScene();
   const rig = new CameraRig(window.innerWidth / window.innerHeight);
   rig.attach(canvas);
   const hud = createHud(document.body);
@@ -134,6 +186,11 @@ async function main(): Promise<void> {
   const renderOrientation = new Quaternion();
   const forward = new Vector3();
   const toTarget = new Vector3();
+  const renderTarget = new Vector3();
+  const relativePosition = new Vector3();
+  const relativeVelocity = new Vector3();
+  const frameVelocity = new Vector3();
+  const toMoon = new Vector3();
   const targetDirection = new Vector3();
   const velocityShip = new Vector3();
   const inverseOrientation = new Quaternion();
@@ -154,7 +211,9 @@ async function main(): Promise<void> {
           controls.throttle = 1;
           break;
         case 'throttleCut':
+          // Throttle cut doubles as "stop": near a target FA brings the ship to rest (D-045).
           controls.throttle = 0;
+          commandStop(fc);
           break;
         case 'cycleAssist':
           setAssistMode(fc, nextAssistMode(fc.mode));
@@ -200,8 +259,10 @@ async function main(): Promise<void> {
           void toggleFullscreen();
           break;
         case 'resetShip':
-          resetShip(ship);
-          copyBodyState(ship.body, previous);
+          placeAtStart();
+          fc.cruise = null;
+          alert = null;
+          setPaused(false);
           setAssistMode(fc, fc.mode);
           controls.throttle = 0;
           controls.reverse = false;
@@ -216,31 +277,65 @@ async function main(): Promise<void> {
     const alpha = loop.advance(elapsed);
     renderPosition.lerpVectors(previous.position, ship.body.position, alpha);
     renderOrientation.slerpQuaternions(previous.orientation, ship.body.orientation, alpha);
+    // The target moves at orbital speed too: interpolate it, or it would jitter by tens of metres.
+    renderTarget.lerpVectors(previousTarget, world.target.position, alpha);
 
-    world.ship.quaternion.copy(renderOrientation);
+    scene.ship.quaternion.copy(renderOrientation);
     rig.update(renderOrientation, loop.paused ? 0 : elapsed);
-    world.update(
-      renderPosition,
-      rig.camera.position,
-      ship.appliedThrottle,
-      ship.appliedRetro,
-      ship.appliedRcs,
-      settings.dust,
-      now / 1000,
-    );
+    const nearTarget = renderPosition.distanceTo(renderTarget) < TARGET_NEAR;
+    scene.update({
+      ship: renderPosition,
+      cameraPosition: rig.camera.position,
+      moon: world.moonPosition,
+      sun: world.sunPosition,
+      target: renderTarget,
+      earthRotation: gmstRadians(clock.jd),
+      throttle: ship.appliedThrottle,
+      retro: ship.appliedRetro,
+      rcs: ship.appliedRcs,
+      showDust: settings.dust && nearTarget,
+      timeSeconds: now / 1000,
+    });
 
     const w = ship.body.angularVelocity;
     const rcsActive =
       ship.appliedRcs.rotation.lengthSq() + ship.appliedRcs.translation.lengthSq() > 1e-6;
-    toTarget.subVectors(TARGET_POSITION, ship.body.position);
+    const referenceBody = world.referenceBody(ship.body.position);
+    const reference = world.bodyState(referenceBody);
+    relativePosition.subVectors(ship.body.position, reference.position);
+    orbitalVelocity.subVectors(ship.body.velocity, reference.velocity);
+    const elements = orbitElements(relativePosition, orbitalVelocity, referenceBody.gm);
+    toTarget.subVectors(world.target.position, ship.body.position);
     const targetDistance = toTarget.length();
+    // Relative to the target's orbiting frame, so a ship on the same orbit reads as at rest.
+    relativeVelocity.subVectors(
+      ship.body.velocity,
+      world.targetFrameVelocity(ship.body.position, frameVelocity),
+    );
+    const targetSpeed = relativeVelocity.length();
+    toMoon.subVectors(world.moonPosition, ship.body.position);
     hud.update(
       {
-        velocity: ship.body.velocity,
+        velocity: orbitalVelocity,
         velocityShip: velocityShip
-          .copy(ship.body.velocity)
+          .copy(relativeVelocity)
           .applyQuaternion(inverseOrientation.copy(ship.body.orientation).invert())
           .multiply(FLIP_Z),
+        targetSpeed,
+        orbit: {
+          body: referenceBody.name,
+          altitude: relativePosition.length() - referenceBody.radius,
+          apoapsisAltitude: elements.apoapsisRadius - referenceBody.radius,
+          periapsisAltitude: elements.periapsisRadius - referenceBody.radius,
+          period: elements.period,
+          inclination: elements.inclination,
+          timeToApoapsis: elements.timeToApoapsis,
+          timeToPeriapsis: elements.timeToPeriapsis,
+        },
+        moonDistance: toMoon.length(),
+        moonDirection: toMoon.normalize(),
+        simDate: clock.date,
+        alert,
         forward: forward.set(0, 0, -1).applyQuaternion(renderOrientation),
         pitchRate: w.x * RAD_TO_DEG,
         yawRate: -w.y * RAD_TO_DEG,
@@ -249,15 +344,16 @@ async function main(): Promise<void> {
         mainPropellantFraction: ship.mainPropellant / placeholderSpacecraft.mainPropellantCapacity,
         rcsPropellantFraction: ship.rcsPropellant / placeholderSpacecraft.rcsPropellantCapacity,
         deltaV: mainDeltaV(ship),
-        stopMain: ship.body.velocity.length() / engineAcceleration(ship, 'main'),
-        stopRetro: ship.body.velocity.length() / engineAcceleration(ship, 'retro'),
+        stopMain: targetSpeed / engineAcceleration(ship, 'main'),
+        stopRetro: targetSpeed / engineAcceleration(ship, 'retro'),
         fa: fc.fa,
+        cruise: fc.cruise,
         reverse: controls.reverse,
         assist: fc.mode,
         camera: rig.mode,
         targetDistance,
         targetDirection: targetDirection.copy(toTarget).normalize(),
-        closingSpeed: targetDistance > 0 ? ship.body.velocity.dot(toTarget) / targetDistance : 0,
+        closingSpeed: targetDistance > 0 ? -relativeVelocity.dot(toTarget) / targetDistance : 0,
         rcsActive,
         paused: loop.paused,
         inputDevice: pad.device,
@@ -268,7 +364,7 @@ async function main(): Promise<void> {
     );
 
     gamepadDebug?.update(now);
-    renderer.render(world.scene, rig.camera);
+    renderer.render(scene.scene, rig.camera);
     stats.frame(now);
   });
 }

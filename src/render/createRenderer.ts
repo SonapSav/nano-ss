@@ -14,7 +14,8 @@ export async function createRenderer(
   canvas: HTMLCanvasElement,
   onDeviceLost: (message: string) => void,
 ): Promise<RendererHandle> {
-  const renderer = new WebGPURenderer({ canvas, antialias: true });
+  // Reversed depth keeps precision from 0.1 m to the Sun without the cost of a logarithmic buffer.
+  const renderer = new WebGPURenderer({ canvas, antialias: true, reversedDepthBuffer: true });
   // Render resolution is capped here; dynamic resolution scaling (D-010) comes later.
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
   renderer.toneMapping = AgXToneMapping;

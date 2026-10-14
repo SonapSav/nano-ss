@@ -25,7 +25,8 @@ export class CameraRig {
   private readonly euler = new Euler(0, 0, 0, 'YXZ');
 
   constructor(aspect: number) {
-    this.camera = new PerspectiveCamera(60, aspect, 0.1, 200_000);
+    // Far enough for the Sun (1.5·10¹¹ m); the reversed depth buffer keeps near objects sharp.
+    this.camera = new PerspectiveCamera(60, aspect, 0.1, 1e12);
   }
 
   /** Mouse drag orbits the chase camera; the wheel zooms. */

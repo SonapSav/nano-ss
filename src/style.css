@@ -170,3 +170,8 @@ body {
 .hud-edge.target {
   color: #7fd8ff;
 }
+
+.hud-marker.moon,
+.hud-edge.moon {
+  color: #d8d8e8;
+}

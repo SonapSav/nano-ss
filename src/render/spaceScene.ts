@@ -10,16 +10,15 @@ import {
   Mesh,
   MeshBasicMaterial,
   MeshStandardMaterial,
+  PointLight,
   Scene,
   SphereGeometry,
   Vector3,
 } from 'three/webgpu';
-import { createBrightness, createPointCloud, type Brightness } from './pointCloud';
+import { EARTH, MOON } from '../world/bodies';
+import { createPointCloud } from './pointCloud';
 import { createRcsPlumes } from './rcsThrusters';
 import { createSpaceDust } from './spaceDust';
-
-/** Target box position in world coordinates (m): 2 km ahead of the start point. */
-export const TARGET_POSITION = new Vector3(0, 0, -2000);
 
 /** Small deterministic random generator, so the starfield is the same every run. */
 function mulberry32(seed: number) {
@@ -52,27 +51,10 @@ function createStars(count: number, radius: number) {
     sizes[i] = brightness > 0.6 ? 3 : brightness > 0.25 ? 2 : 1.5;
   }
   const { sprite: stars } = createPointCloud(positions, colors, sizes);
+  // Drawn first and without depth, so Earth, the Moon, and the ship always cover them.
   stars.renderOrder = -1;
+  stars.material.depthTest = false;
   return stars;
-}
-
-/** Navigation beacons every 500 m in a cube around the start, so motion is visible. */
-function createBeacons(blink: Brightness) {
-  const spacing = 500;
-  const steps = 4; // -2 km to +2 km
-  const points: number[] = [];
-  for (let x = -steps; x <= steps; x++)
-    for (let y = -steps; y <= steps; y++)
-      for (let z = -steps; z <= steps; z++) {
-        if (x === 0 && y === 0 && z === 0) continue;
-        points.push(x * spacing, y * spacing, z * spacing);
-      }
-  const count = points.length / 3;
-  const colors = new Float32Array(count * 3);
-  for (let i = 0; i < count; i++) colors.set([1, 0.6, 0.15], i * 3);
-  return createPointCloud(new Float32Array(points), colors, new Float32Array(count).fill(4), {
-    brightness: blink,
-  }).sprite;
 }
 
 /**
@@ -150,20 +132,62 @@ function createShipModel() {
     return g;
   });
 
-  return { ship, engineGlow, glowMaterial, retroGlows, retroMaterial };
+  // Navigation lights (red left, green right, white strobe at the tail), visible in Earth's shadow.
+  const navLight = (color: number, position: [number, number, number]) => {
+    const light = new Mesh(new SphereGeometry(0.09, 8, 4), new MeshBasicMaterial({ color }));
+    light.position.set(...position);
+    ship.add(light);
+    return light;
+  };
+  navLight(0xff2020, [-1.62, 0, 0.4]);
+  navLight(0x20ff40, [1.62, 0, 0.4]);
+  const strobe = navLight(0xffffff, [0, 1.45, 3.2]);
+
+  // Hull floodlights: a short-range light that only reaches the ship itself.
+  const flood = new PointLight(0xdde6ff, 2, 14, 1.5);
+  flood.position.set(0, 3, 6);
+  ship.add(flood);
+
+  return { ship, engineGlow, glowMaterial, retroGlows, retroMaterial, strobe };
 }
 
+export interface SceneFrame {
+  /** Ship position, Earth-centred inertial (m, 64-bit). */
+  ship: Vector3;
+  cameraPosition: Vector3;
+  moon: Vector3;
+  sun: Vector3;
+  target: Vector3;
+  /** Earth's rotation angle (Greenwich sidereal time, rad). */
+  earthRotation: number;
+  throttle: number;
+  retro: number;
+  rcs: { rotation: Vector3; translation: Vector3 };
+  /** Motion dust is shown around the target only when the ship is near it. */
+  showDust: boolean;
+  timeSeconds: number;
+}
+
+/** True if `p` is inside Earth's shadow (cylinder model; the umbra cone is ignored). */
+export function inEarthShadow(p: Vector3, sun: Vector3): boolean {
+  const toSun = _sunDir.copy(sun).normalize();
+  const along = p.dot(toSun);
+  if (along > 0) return false;
+  return p.lengthSq() - along * along < EARTH.radius * EARTH.radius;
+}
+const _sunDir = new Vector3();
+
 /**
- * Stage 1 scene, camera-relative: the ship stays at the render origin and
- * `worldRoot` is placed at minus the ship's 64-bit world position each frame.
+ * Camera-relative scene: the ship stays at the render origin and `worldRoot`
+ * (the Earth-centred frame) sits at minus the ship's 64-bit position, so
+ * three.js combines the large offsets in 64-bit before anything reaches the GPU.
  */
 export function createSpaceScene() {
   const scene = new Scene();
   scene.background = new Color(0x000000);
 
-  // One hard sun, plus a faint fill standing in for light reflected off a planet.
+  // Sunlight from the real Sun direction, plus a faint fill standing in for earthshine.
   const sun = new DirectionalLight(0xffffff, 4);
-  sun.position.set(1, 0.45, 0.6);
   scene.add(sun, new AmbientLight(0x334466, 0.06));
 
   const stars = createStars(4000, 50_000);
@@ -172,51 +196,62 @@ export function createSpaceScene() {
   const worldRoot = new Group();
   scene.add(worldRoot);
 
-  const blink = createBrightness();
-  worldRoot.add(createBeacons(blink));
+  // Plain lit spheres for now; real NASA textures come in Stage 3c.
+  const earth = new Mesh(
+    new SphereGeometry(EARTH.radius, 128, 64).rotateX(Math.PI / 2), // poles along +Z (Earth's axis)
+    new MeshStandardMaterial({ color: 0x3b6fb6, roughness: 0.9, metalness: 0 }),
+  );
+  worldRoot.add(earth);
+
+  const moon = new Mesh(
+    new SphereGeometry(MOON.radius, 96, 48),
+    new MeshStandardMaterial({ color: 0x9a9a9a, roughness: 1, metalness: 0 }),
+  );
+  worldRoot.add(moon);
 
   const target = new Mesh(
     new BoxGeometry(20, 10, 30),
     new MeshStandardMaterial({ color: 0x9aa4b0, metalness: 0.6, roughness: 0.4 }),
   );
-  target.position.copy(TARGET_POSITION);
   worldRoot.add(target);
 
-  const { ship, engineGlow, glowMaterial, retroGlows, retroMaterial } = createShipModel();
+  const { ship, engineGlow, glowMaterial, retroGlows, retroMaterial, strobe } = createShipModel();
   const plumes = createRcsPlumes();
   ship.add(plumes.group);
   scene.add(ship);
 
   const dust = createSpaceDust();
   scene.add(dust.sprite);
+  const shipFromTarget = new Vector3();
 
   return {
     scene,
     ship,
-    update(
-      shipWorldPosition: Vector3,
-      cameraPosition: Vector3,
-      throttle: number,
-      retro: number,
-      rcs: { rotation: Vector3; translation: Vector3 },
-      showDust: boolean,
-      timeSeconds: number,
-    ) {
+    update(f: SceneFrame) {
       // 64-bit subtraction happens here, on the CPU, before anything reaches the GPU.
-      worldRoot.position.copy(shipWorldPosition).negate();
-      stars.position.copy(cameraPosition);
-      blink.value = Math.sin(timeSeconds * Math.PI) > 0.6 ? 1 : 0.25;
-      engineGlow.visible = throttle > 0.001;
-      engineGlow.scale.set(0.6 + throttle * 0.6, 0.6 + throttle * 0.6, 1 + throttle * 3);
-      glowMaterial.opacity = 0.35 + throttle * 0.65;
+      worldRoot.position.copy(f.ship).negate();
+      moon.position.copy(f.moon);
+      target.position.copy(f.target);
+      earth.rotation.z = f.earthRotation;
+      stars.position.copy(f.cameraPosition);
+
+      sun.position.copy(f.sun).normalize();
+      sun.intensity = inEarthShadow(f.ship, f.sun) ? 0 : 4;
+      strobe.visible = f.timeSeconds % 1.5 < 0.08;
+
+      engineGlow.visible = f.throttle > 0.001;
+      engineGlow.scale.set(0.6 + f.throttle * 0.6, 0.6 + f.throttle * 0.6, 1 + f.throttle * 3);
+      glowMaterial.opacity = 0.35 + f.throttle * 0.65;
       for (const g of retroGlows) {
-        g.visible = retro > 0.001;
-        g.scale.set(0.7 + retro * 0.5, 0.7 + retro * 0.5, 1 + retro * 4);
+        g.visible = f.retro > 0.001;
+        g.scale.set(0.7 + f.retro * 0.5, 0.7 + f.retro * 0.5, 1 + f.retro * 4);
       }
-      retroMaterial.opacity = 0.35 + retro * 0.65;
-      plumes.update(rcs.rotation, rcs.translation, 0.85 + 0.15 * Math.sin(timeSeconds * 60));
-      dust.sprite.visible = showDust;
-      if (showDust) dust.update(shipWorldPosition);
+      retroMaterial.opacity = 0.35 + f.retro * 0.65;
+      plumes.update(f.rcs.rotation, f.rcs.translation, 0.85 + 0.15 * Math.sin(f.timeSeconds * 60));
+
+      dust.sprite.visible = f.showDust;
+      // Dust is fixed in the target's frame, so it shows motion relative to the target.
+      if (f.showDust) dust.update(shipFromTarget.subVectors(f.ship, f.target));
     },
   };
 }
