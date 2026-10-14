@@ -1,0 +1,32 @@
+html,
+body {
+  margin: 0;
+  height: 100%;
+  background: #000;
+  overflow: hidden;
+}
+
+#view {
+  display: block;
+  width: 100vw;
+  height: 100vh;
+}
+
+.stats {
+  position: fixed;
+  top: 8px;
+  left: 8px;
+  padding: 4px 8px;
+  font:
+    12px/1.4 ui-monospace,
+    monospace;
+  color: #9fe89f;
+  background: rgb(0 0 0 / 60%);
+  border-radius: 4px;
+  white-space: pre;
+  pointer-events: none;
+}
+
+.stats.error {
+  color: #ff8080;
+}
