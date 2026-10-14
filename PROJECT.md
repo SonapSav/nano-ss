@@ -46,6 +46,10 @@ Decided:
 - **Atmospheres:** full aerodynamics and re-entry heating, spaceplane-style runway landings (D-014)
 - **Ship:** one spaceplane: runway takeoff and landing where there is air, vertical landing and takeoff on thrusters on airless bodies (D-019)
 
+- **Dev environment:** everything in Docker: Node 24, pnpm, dev server, checks, certificates, CI (D-030 to D-033)
+- **Package manager:** pnpm (D-031)
+- **Quality:** ESLint (typescript-eslint, strict type-checked), Prettier, Vitest, GitHub Actions CI (D-033)
+
 ## Hardware Baseline
 
 | | Reference (dev machine) | Minimum |
@@ -74,11 +78,22 @@ Rules:
 
 ```
 nano-ss/
-├── README.md     # Quick intro and getting started
-├── PROJECT.md    # This file: purpose, scope, and plan
-├── CLAUDE.md     # Guidance for Claude Code in this repo
-├── LICENSE       # MIT
-└── .gitignore
+├── README.md         # Intro, requirements, quick start, commands
+├── PROJECT.md        # This file: purpose, scope, decisions, roadmap
+├── CLAUDE.md         # Guidance for Claude Code in this repo
+├── LICENSE           # MIT
+├── Makefile          # All commands, each a docker compose call
+├── compose.yaml      # Services: dev (tooling), web (nginx on 8787), certs (mkcert)
+├── .env.example      # CERT_HOSTS; copied to the git-ignored .env
+├── docker/           # Dockerfiles and nginx config
+├── .github/workflows # CI: make check + production image build
+├── index.html
+├── src/
+│   ├── main.ts       # Startup: renderer, scene, loop, overlay
+│   ├── platform/     # GPU report, worker budget (with tests)
+│   ├── render/       # Renderer setup, placeholder scene
+│   └── ui/           # Stats overlay
+└── certs/            # Local CA and certificate (git-ignored)
 ```
 
 ## Open Decisions
@@ -88,6 +103,34 @@ Items discussed but not yet decided. Each entry records when it was raised, who 
 _None currently._
 
 ## Resolved Decisions
+
+### D-030: Development environment
+
+- **Raised:** 2026-10-14
+- **Decided:** 2026-10-14
+- **Owner:** Panos
+- **Outcome:** Everything runs in Docker so the project is transferable: a machine needs only Docker, git, make, and Chromium. A Compose `dev` service (Node 24, pinned image tag) runs the dev server, lint, type check, tests, and build; the host's Node 20 (end of life) is never used. Rejected: VS Code Dev Container (tied to one editor), Node installed per machine with fnm (each machine must install tools).
+
+### D-031: Package manager
+
+- **Raised:** 2026-10-14
+- **Decided:** 2026-10-14
+- **Owner:** Panos
+- **Outcome:** pnpm, version pinned in `package.json` and the Dockerfiles. Chosen over npm for faster installs, less disk use, and strict dependency checks.
+
+### D-032: Certificate creation
+
+- **Raised:** 2026-10-14
+- **Decided:** 2026-10-14
+- **Owner:** Panos
+- **Outcome:** mkcert runs in a one-off container (`make certs`), writing the local CA and server certificate to the git-ignored `certs/` folder; nothing is installed on the host. Certificates are mounted into the dev and web containers at runtime, never built into images. Each machine that opens the sim imports `certs/ca/rootCA.pem` into Chromium once. Certificate names come from `CERT_HOSTS` in `.env`.
+
+### D-033: Continuous integration
+
+- **Raised:** 2026-10-14
+- **Decided:** 2026-10-14
+- **Owner:** Panos
+- **Outcome:** GitHub Actions runs `make check` and `make build` on every push to `main` and on pull requests, using the same Docker setup as local development. This also proves the project builds on a clean machine from the repo alone.
 
 ### D-029: Snapshots on the NAS
 
@@ -300,12 +343,20 @@ _None currently._
 
 ## Roadmap
 
-- [x] Initialize repository
-- [x] Define purpose (2026-10-14)
-- [x] Choose universe and scale: real solar system (2026-10-14)
-- [x] Settle scope decisions (2026-10-14)
-- [ ] Choose tech stack
-- [ ] First working version
+Planning (done 2026-10-14): repository, purpose, scope, tech stack, assets, and backups (D-001 to D-033).
+
+- [ ] **Stage 0: Setup.** Vite, TypeScript, and Three.js (WebGPU with WebGL2 fallback); Docker for all tooling; nginx serving HTTPS on 8787 with mkcert certificates; lint, format, type check, tests, and CI; placeholder scene with GPU report and worker budget. (built 2026-10-14; browser check on Chromium pending)
+- [ ] **Stage 1: Flight core.** Realistic 6-axis flight in empty space, chase and nose cameras, basic heads-up display, keyboard controls.
+- [ ] **Stage 2: Input.** HOTAS X support tuned for Linux Chromium, rebindable controls, calibration and dead zones.
+- [ ] **Stage 3: Earth and Moon.** Real orbits from NASA/JPL data, handling of huge distances (floating origin, logarithmic depth), gravity, two-level time warp.
+- [ ] **Stage 4: Hyperdrive.** Speed bands 0.1c to 100c, charge-up, gravity-well limits, arrival speed matching.
+- [ ] **Stage 5: Moon spacedromes.** Landing pads on real lunar terrain, vertical landing on thrusters, contact checks.
+- [ ] **Stage 6: Orbital stations.** Modular stations, docking with the capture check.
+- [ ] **Stage 7: Second monitor.** Window for instruments, cameras, and maps.
+- [ ] **Stage 8: Earth atmosphere.** Aerodynamics, re-entry heating, runway takeoff and landing.
+- [ ] **Stage 9: More of the solar system.** Inner planets, then the rest.
+
+Alongside: the spaceplane model in Blender (D-020); the cockpit frame once the design is settled (D-021).
 
 ## Owner
 

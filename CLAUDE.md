@@ -4,7 +4,7 @@ Guidance for Claude Code when working in this repository.
 
 ## Project
 
-nano-ss is a new project in early setup. See `PROJECT.md` for purpose, scope, and roadmap, and keep it updated as decisions are made.
+nano-ss is a realistic space flight simulator (TypeScript, Vite, Three.js WebGPU, nginx over HTTPS in Docker). See `PROJECT.md` for purpose, scope, and roadmap, and keep it updated as decisions are made.
 
 ## Planning and Open Decisions
 
@@ -34,6 +34,24 @@ nano-ss is a new project in early setup. See `PROJECT.md` for purpose, scope, an
 - Create `CHANGELOG.md` (Keep a Changelog format, grouped by version, human-readable summaries) when the first version/release is cut or a second developer joins. Generate it from git history (e.g. `/changelog-gen`).
 - Decisions and their rationale belong in `PROJECT.md`, not the changelog.
 
+## Environment
+
+- **All tooling runs in Docker** (D-030), so the project transfers to any machine with Docker, git, make, and Chromium. Use `make` targets or `docker compose run --rm dev …`. Never run `pnpm`, `node`, or `mkcert` on the host (the host's Node is Debian's v20 and is not used).
+- Package manager: pnpm, version pinned in `package.json` (`packageManager`) and in `docker/*.Dockerfile`; keep them in sync.
+- Base images are pinned to exact tags in `docker/*.Dockerfile`.
+- `certs/` holds the local CA and server certificate. Never commit it, print `certs/ca/rootCA-key.pem` or `certs/server.key`, or copy them into an image.
+- TypeScript stays on 6.0.x until `typescript-eslint` supports TypeScript 7.
+
 ## Commands
 
-_TBD — add build, test, lint, and run commands once the stack is chosen._
+| Command | Purpose |
+|---|---|
+| `make certs` | Create the local CA and HTTPS certificate |
+| `make dev` | Dev server on `https://<host>:5173` |
+| `make check` | Lint, format check, type check, unit tests (same as CI) |
+| `make lint` / `make typecheck` / `make test` / `make format` | Single checks / formatting |
+| `make build` | Build the production image |
+| `make up` / `make down` / `make logs` | Production server on `https://<host>:8787` |
+| `make shell` | Shell in the dev container |
+
+Run `make check` before committing code changes.
