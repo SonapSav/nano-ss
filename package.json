@@ -2,7 +2,7 @@
   "name": "nano-ss",
   "version": "0.0.0",
   "private": true,
-  "description": "Realistic space flight simulator in the real solar system, built with Three.js",
+  "description": "Realistic space flight game in the real solar system, built with Three.js",
   "license": "MIT",
   "author": "Panos Vasilopoulos <sonap.sav@gmail.com>",
   "type": "module",

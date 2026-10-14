@@ -4,7 +4,7 @@ Guidance for Claude Code when working in this repository.
 
 ## Project
 
-nano-ss is a realistic space flight simulator (TypeScript, Vite, Three.js WebGPU, nginx over HTTPS in Docker). See `PROJECT.md` for purpose, scope, and roadmap, and keep it updated as decisions are made.
+nano-ss is a realistic space flight game (TypeScript, Vite, Three.js WebGPU, nginx over HTTPS in Docker). See `PROJECT.md` for purpose, scope, and roadmap, and keep it updated as decisions are made.
 
 ## Planning and Open Decisions
 

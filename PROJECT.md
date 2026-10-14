@@ -2,12 +2,12 @@
 
 ## Purpose
 
-nano-ss is a realistic space flight simulator set in the real solar system at real scale. The user commands a spacecraft that flies between planets using a hyperdrive, lands at spacedromes on those planets, and docks with other spacecraft.
+nano-ss is a **realistic space flight game** set in the real solar system at real scale (D-044). The player commands a spacecraft that flies between planets and moons using a hyperdrive, lands at spaceports (spacedromes) on airless bodies, and docks with other spacecraft. Newtonian physics is the foundation; player-friendly assists can be switched on and off. The first focus is **free flight and exploration**; missions come later.
 
 ## Goals
 
-- Fly a user-commanded spacecraft between planets.
-- Land at spacedromes on planets (spacedromes only; D-006).
+- Fly a player-commanded spacecraft between planets and moons, for free flight and exploration.
+- Land at spaceports (spacedromes) on airless bodies only, vertically on thrusters (D-006, D-044).
 - Dock with other spacecraft.
 - Control the ship with the keyboard and with a Thrustmaster T.Flight HOTAS X.
 - Run primarily on Linux in a Chromium-based browser. Windows is secondary, best-effort (see D-009).
@@ -19,8 +19,10 @@ nano-ss is a realistic space flight simulator set in the real solar system at re
 
 - Multiplayer (for now; D-008).
 - Firefox support (D-009).
-- Arcade-style flight (D-004).
-- Landing anywhere on a planet surface outside spacedromes (D-006).
+- Arcade-style flight: physics stays Newtonian; assists are optional layers on top (D-004, D-044).
+- Landing anywhere outside spaceports (D-006).
+- Landing on bodies with an atmosphere, aerodynamics, and re-entry (D-044).
+- Missions, for now: to be discussed after free flight and exploration (D-044).
 - More than two monitors (D-011).
 
 ## Tech Stack
@@ -35,7 +37,8 @@ Decided:
 - **Packaging:** Docker, serving on port 8787
 - **Platforms:** Linux (primary), Windows (best-effort)
 - **Browser:** Chromium-based (Chrome/Chromium). Firefox is not a target: it was about 2x slower with WebGPU in a previous sim.
-- **Flight model:** realistic Newtonian physics with orbital mechanics (D-004)
+- **Genre:** realistic game, not a strict simulator (D-044)
+- **Flight model:** Newtonian physics with orbital mechanics (D-004), plus optional player assists (D-044)
 - **Players:** single-player (D-008)
 - **Universe:** real solar system at real scale (D-005), with hyperdrive speed bands for travel (D-015) and two-level time warp (D-016)
 
@@ -43,8 +46,8 @@ Decided:
 - **HTTPS:** certificates from a local certificate authority made with mkcert (D-013)
 
 - **Collisions:** custom contact checks behind a replaceable interface (D-017)
-- **Atmospheres:** full aerodynamics and re-entry heating, spaceplane-style runway landings (D-014)
-- **Ship:** one spaceplane: runway takeoff and landing where there is air, vertical landing and takeoff on thrusters on airless bodies (D-019)
+- **Landing:** airless bodies only; no aerodynamics or re-entry (D-044)
+- **Ship:** a pure spacecraft (no wings), vertical landing and takeoff on thrusters everywhere (D-043)
 
 - **Dev environment:** everything in Docker: Node 24, pnpm, dev server, checks, certificates, CI (D-030 to D-033)
 - **Package manager:** pnpm (D-031)
@@ -103,6 +106,39 @@ Items discussed but not yet decided. Each entry records when it was raised, who 
 _None currently._
 
 ## Resolved Decisions
+
+### D-042: Forward-facing braking engine
+
+- **Raised:** 2026-10-14
+- **Decided:** 2026-10-14
+- **Owner:** Panos
+- **Outcome:** Add **retro engines** in the nose at about one third of the main engine's thrust (40 kN), using main propellant: braking from 100 m/s takes about 30 to 45 s without turning around (a flip and burn stays faster for large speed changes). Control: a **reverse toggle** on HOTAS throttle button 6 (index 5) and keyboard **B**; while on, the throttle lever drives the retro engines instead of the main engine, the HUD shows REVERSE, and the nose glows. Switching reverse on or off cuts thrust until the lever moves again, so the ship never suddenly burns the wrong way. Raised because braking required turning around (allowed under D-044).
+
+### D-041: Game assists for braking and orientation
+
+- **Raised:** 2026-10-14
+- **Decided:** 2026-10-14
+- **Owner:** Panos
+- **Outcome:** Add, as switchable assists (D-044):
+  - **Retrograde hold** and **Prograde hold** attitude modes: the ship turns itself to face against or along its velocity and holds there; the pilot still does the burn. Retrograde hold on HOTAS stick button 2 (R3) and keyboard **V**; prograde hold on keyboard **G**.
+  - **Flight assist (FA)** that also cancels drift: with FA on, when there is no translation input the RCS brings the ship's velocity to zero (relative to the start point for now, later the nearest body or station); with FA off, pure Newtonian flight as before. Toggle on keyboard **Y**; HOTAS unassigned (rebindable).
+  - **Edge arrows** at the screen border pointing to off-screen markers (⊕, ⊗, nose), since ⊗ is usually behind the ship.
+  - **Time-to-stop hint** in the HUD: burn time needed to stop at full throttle with the main engine and with the retro engines, next to the remaining Δv.
+  Raised because Panos could not find ⊗ and had to turn around to brake.
+
+### D-044: Realistic game, not a strict simulator
+
+- **Raised:** 2026-10-14
+- **Decided:** 2026-10-14
+- **Owner:** Panos
+- **Outcome:** nano-ss is a **realistic space flight game**. Newtonian physics, gravity and orbits, the real solar system at real scale, and the hyperdrive stay the foundation; player-friendly layers that a strict simulator rules out are allowed when they help play, preferably switchable (e.g. a flight assist that also cancels drift, retro engines, refuelling at spaceports). **Landing only at spaceports on airless bodies**: no Earth landing, no aerodynamics or re-entry; Earth stays for orbits, views, and stations. **Free flight and exploration first**; missions are discussed later. Changes earlier decisions: D-004 (assistance no longer limited to what real spacecraft have), D-014 (no atmospheric flight; its Stage 8 is dropped), D-019 (vertical landing everywhere), D-043 (ship shape). Cost of the change was low: Stages 0 to 2 are reused unchanged.
+
+### D-043: Ship configuration revisited
+
+- **Raised:** 2026-10-14
+- **Decided:** 2026-10-14
+- **Owner:** Panos
+- **Outcome:** With no atmospheric landings (D-044), the ship is a **pure spacecraft**: no wings, vertical landing and takeoff on thrusters at every spaceport. The look is Panos's design in Blender (D-020); the greybox is replaced by a spacecraft-shaped placeholder when convenient. Rejected: winged spaceplane, lifting body, and runway hybrid, all only needed for gliding re-entry.
 
 ### D-040: HOTAS X mapping
 
@@ -253,14 +289,14 @@ _None currently._
 - **Owner:** Panos
 - **Outcome:** Panos models the assets in Blender, with Claude assisting through a Blender MCP connection (D-023): Claude handles precise, repetitive, and technical work (exact-dimension kit parts, materials, UVs, detail levels, export settings, budget checks) and explains techniques, while Panos makes the creative decisions. Greybox placeholders until the engine works. Stations and spacedrome buildings as a modular kit assembled in code. Planets, Moon, and stars from real data (D-005). Free Blender add-ons only.
 
-### D-019: Landing on airless bodies and leaving Earth
+### D-019: Landing on airless bodies and leaving Earth (superseded by D-044, D-043)
 
 - **Raised:** 2026-10-14
 - **Decided:** 2026-10-14
 - **Owner:** Panos
 - **Outcome:** One spaceplane for all bodies. Where there is air, it lands on a runway (D-014); on airless bodies such as the Moon, it lands and takes off vertically on thrusters, so airless spacedromes have landing pads. From Earth, it takes off horizontally from the runway using rocket engines and climbs to orbit.
 
-### D-014: Atmospheric flight
+### D-014: Atmospheric flight (superseded by D-044)
 
 - **Raised:** 2026-10-14
 - **Decided:** 2026-10-14
@@ -355,7 +391,7 @@ _None currently._
 - **Owner:** Panos
 - **Outcome:** Target is 1080p at 60 fps on the dev machine (AMD Ryzen 5 5500U, Radeon Vega 7 integrated). The render resolution scales down automatically when the frame rate drops, with 30 fps as the floor in the heaviest scenes. WebGPU works in Chromium 155 on this machine once three Vulkan flags are enabled (D-034).
 
-### D-004: Flight model realism
+### D-004: Flight model realism (amended by D-044)
 
 - **Raised:** 2026-10-14
 - **Decided:** 2026-10-14
@@ -397,15 +433,16 @@ Planning (done 2026-10-14): repository, purpose, scope, tech stack, assets, and 
 - [x] **Stage 0: Setup.** Vite, TypeScript, and Three.js (WebGPU with WebGL2 fallback); Docker for all tooling; nginx serving HTTPS on 8787 with mkcert certificates; lint, format, type check, tests, and CI; placeholder scene with GPU report and worker budget. (2026-10-14; verified on WebGPU in Chromium, D-034)
 - [x] **Stage 1: Flight core.** Realistic 6-axis flight in empty space on a fixed physics time step, chase and nose cameras, basic heads-up display, keyboard controls, frame rate setting (60 fps default or display rate; D-035). (2026-10-14; D-036 to D-038)
 - [x] **Stage 2: Input.** HOTAS X support tuned for Linux Chromium, rebindable controls, calibration and dead zones. (2026-10-14; D-039, D-040)
-- [ ] **Stage 3: Earth and Moon.** Real orbits from NASA/JPL data, handling of huge distances (floating origin, logarithmic depth), gravity, two-level time warp.
+- [ ] **Stage 2b: Game assists.** Retro engines (D-042); retrograde/prograde hold, drift-cancelling flight assist, edge arrows, time-to-stop hint (D-041); spacecraft-shaped greybox (D-043).
+- [ ] **Stage 3: Earth and Moon.** Real orbits from NASA/JPL data, handling of huge distances (floating origin, logarithmic depth), gravity, two-level time warp. Earth for orbits and views only (no landing, D-044).
 - [ ] **Stage 4: Hyperdrive.** Speed bands 0.1c to 100c, charge-up, gravity-well limits, arrival speed matching.
-- [ ] **Stage 5: Moon spacedromes.** Landing pads on real lunar terrain, vertical landing on thrusters, contact checks.
+- [ ] **Stage 5: Moon spaceports.** Landing pads on real lunar terrain, vertical landing on thrusters, contact checks, refuelling.
 - [ ] **Stage 6: Orbital stations.** Modular stations, docking with the capture check.
 - [ ] **Stage 7: Second monitor.** Window for instruments, cameras, and maps.
-- [ ] **Stage 8: Earth atmosphere.** Aerodynamics, re-entry heating, runway takeoff and landing.
-- [ ] **Stage 9: More of the solar system.** Inner planets, then the rest.
+- [ ] **Stage 8: Exploration across the solar system.** More airless destinations (other moons, Mercury, asteroids) with spaceports; planets with atmospheres are visited from orbit only.
+- [ ] **Later: missions,** to be discussed (D-044).
 
-Alongside: the spaceplane model in Blender (D-020); the cockpit frame once the design is settled (D-021).
+Alongside: the spacecraft model in Blender (D-020, D-043); the cockpit frame once the design is settled (D-021).
 
 ## Owner
 

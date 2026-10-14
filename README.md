@@ -1,6 +1,6 @@
 # nano-ss
 
-A realistic space flight simulator set in the real solar system at real scale, built with Three.js. Fly a spaceplane between planets with a hyperdrive, land at spacedromes, and dock with other spacecraft, using the keyboard or a Thrustmaster T.Flight HOTAS X. See [PROJECT.md](PROJECT.md) for scope, decisions, and roadmap.
+A realistic space flight game set in the real solar system at real scale, built with Three.js. Fly a spacecraft between planets and moons with a hyperdrive, land at spaceports on airless worlds, and dock with other spacecraft, using the keyboard or a Thrustmaster T.Flight HOTAS X. See [PROJECT.md](PROJECT.md) for scope, decisions, and roadmap.
 
 **Status:** Stage 2 (input): realistic 6-axis flight in empty space with keyboard and Thrustmaster T.Flight HOTAS X, fully rebindable.
 
