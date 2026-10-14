@@ -37,3 +37,12 @@ coverage/
 
 # Downloaded and processed real-world data (NASA/USGS; D-022)
 data-cache/
+
+# Local HTTPS certificates and CA (never commit; D-013)
+certs/
+
+# Local environment overrides
+.env
+
+# TypeScript build info
+*.tsbuildinfo
