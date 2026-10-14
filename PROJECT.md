@@ -89,11 +89,9 @@ Items discussed but not yet decided. Each entry records when it was raised, who 
 
 - **Raised:** 2026-10-14
 - **Owner:** Panos
-- **Status:** Open
-- **Context:** `.blend` sources are backed up to Google Drive (`sonap.sav@gmail.com`, D-022). Claude's Drive tools cannot read the storage quota, so free space is unverified. The free Google plan is 15 GB shared with Gmail and Photos; `.blend` sources for the project could reach several GB over time, especially with saved versions. Google has no official Drive app for Linux. Options for the backup: rclone (free, open source; work locally in a folder such as `~/Development/nano-ss-assets` and sync it to Drive, keeping old versions in a separate Drive folder), KDE's built-in Google Drive integration (`kio-gdrive`, mounts Drive as a network folder; too slow to work on `.blend` files directly, fine for manual copies), or Insync (paid). Recommendation: rclone.
-- **Action expected (Panos):** Check free space at https://drive.google.com/settings/storage and report it, and approve rclone (or choose another tool).
-
-## Resolved Decisions
+- **Status:** Open (setup in progress)
+- **Context:** Decided 2026-10-14: back up `.blend` sources with rclone to Panos's PrimeSoft Google Workspace Drive, which has more storage than the personal account. rclone v1.75.2 is installed in `~/.local/bin` (the Debian package is too old). Local working folder: `~/Development/nano-ss-assets`. Backup command: `scripts/backup-assets.sh`, which syncs that folder to `nano-ss-drive:nano-ss-assets/current` and moves replaced or deleted files to `nano-ss-assets/versions/<timestamp>`. rclone signs in to Google separately from Claude's connectors. Recommended access scope: `drive.file`, so rclone can only see files it creates itself, not the rest of the work Drive. Note: files on a company Workspace account are company-owned data that Workspace admins can access. If Workspace policy blocks third-party apps, rclone must be allowed in the Admin console (Security → API controls).
+- **Action expected (Panos):** Run `rclone config` to create the `nano-ss-drive` remote, signing in with the PrimeSoft account; then report the output of `rclone about nano-ss-drive:` so free space can be recorded.
 
 ### D-021: Cockpit
 
@@ -109,7 +107,7 @@ Items discussed but not yet decided. Each entry records when it was raised, who 
 - **Owner:** Panos
 - **Outcome:**
   - **Licensing:** commit only assets that are our own, public domain, CC0, or CC-BY (credited); record every third-party asset in `ASSETS.md` (source, author, license, link). No NC licenses; SA only if accepted knowingly. NASA imagery is allowed, but no NASA logos or insignia and nothing implying NASA endorsement. Assets with restrictive licenses stay out of the repo.
-  - **Storage (hybrid):** `.blend` sources live outside the repo and are backed up to Google Drive (`sonap.sav@gmail.com`); `.gitignore` excludes `*.blend` files. Exported, compressed game models (GLB with compressed textures) are committed so the Docker build is self-contained. Large NASA/USGS data is downloaded and processed by a script during the scenery build, cached locally in `data-cache/` (git-ignored). Storage check and backup tool continue in D-025.
+  - **Storage (hybrid):** `.blend` sources live outside the repo and are backed up to Google Drive on Panos's PrimeSoft Google Workspace account (D-025); `.gitignore` excludes `*.blend` files. Exported, compressed game models (GLB with compressed textures) are committed so the Docker build is self-contained. Large NASA/USGS data is downloaded and processed by a script during the scenery build, cached locally in `data-cache/` (git-ignored). Storage check and backup tool continue in D-025.
 
 ### D-024: Project license
 
