@@ -93,21 +93,30 @@ export function timeToArrival(
 
 const _radial = new Vector3();
 const _tangent = new Vector3();
+const _toward = new Vector3();
 
 /**
  * Velocity for a circular orbit around `body` at the ship's current radius,
- * turning in the direction the ship was heading (arrival state, Stage 4).
+ * turning in the direction the ship was heading (arrival state, Stage 4);
+ * or, given `over` (an offset from the body's centre, e.g. a targeted pad),
+ * in the plane through it, heading toward it the short way (Stage 5c).
  */
 export function circularOrbitVelocity(
   position: Vector3,
   heading: Vector3,
   body: BodyNow,
   out: Vector3,
+  over?: Vector3,
 ): Vector3 {
   _radial.subVectors(position, body.position);
   const r = _radial.length();
   _radial.divideScalar(r);
-  _tangent.copy(heading).addScaledVector(_radial, -heading.dot(_radial));
+  const toward = over ? _toward.copy(over).normalize() : heading;
+  _tangent.copy(toward).addScaledVector(_radial, -toward.dot(_radial));
+  if (over && _tangent.lengthSq() < 1e-6) {
+    // Right above or opposite the point: any plane through it works, so keep the heading.
+    _tangent.copy(heading).addScaledVector(_radial, -heading.dot(_radial));
+  }
   if (_tangent.lengthSq() < 1e-6) {
     // Heading straight at (or away from) the body: pick any direction around it.
     _tangent.set(0, 0, 1).cross(_radial);

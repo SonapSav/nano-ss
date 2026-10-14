@@ -9,6 +9,7 @@ import { EARTH, MOON } from '../world/bodies';
 import { Ephemeris } from '../world/ephemeris';
 import { orbitElements, orientationFromForwardUp } from '../world/orbit';
 import { SimClock } from '../world/time';
+import { Site } from '../world/terrain';
 import { World } from '../world/world';
 import { createPhysicsState, stepPhysics } from './physicsStep';
 
@@ -126,6 +127,41 @@ describe('hyperdrive trips', () => {
       expect((el.periapsisRadius - MOON.radius) / 1000).toBeCloseTo(100, -1);
     });
   }
+
+  it('arrives in an orbit whose ground track passes over the targeted pad', () => {
+    const s = atEarthFacingMoon(1_500_000);
+    const site = new Site({
+      name: 'test',
+      centerLat: 20,
+      centerLon: 30,
+      size: 2,
+      halfExtent: 20_000,
+      heights: new Float32Array(4),
+      ringSize: 2,
+      ringHalfExtent: 200_000,
+      ringHeights: new Float32Array(4),
+      padX: 0,
+      padY: 0,
+    });
+    const port = { name: 'test', title: 'Test', site };
+    s.world.spaceports = [port];
+    s.state.navTarget = port;
+    expect(fly(s, 1, 120).arrived).toBe(true);
+    s.controls.throttle = 0;
+    // Coast one orbit at 1000×, watching the distance from the point below the ship to the pad.
+    for (let i = 0; i < 5; i++) s.state.warp.up();
+    const pad = site.padPoint(new Vector3()).normalize();
+    const below = new Vector3();
+    let closest = Infinity;
+    for (let t = 0; t < 8_000; t += DT * 1000) {
+      stepPhysics(s.state, DT);
+      s.world.moonFrame.toLocal(s.ship.body.position, below).normalize();
+      closest = Math.min(closest, MOON.radius * below.angleTo(pad));
+    }
+    expect(s.state.warp.factor).toBe(1000);
+    // Samples are about 13 km apart along the track, so the pass shows as a few km at most.
+    expect(closest).toBeLessThan(8_000);
+  });
 
   it('cannot engage from the 400 km start orbit', () => {
     const s = setup();

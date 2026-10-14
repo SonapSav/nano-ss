@@ -47,8 +47,14 @@ export class Landing {
   readonly localOrientation = new Quaternion();
   airborne = Infinity;
   settled = 0;
+  /**
+   * Touched down: FA leaves translation alone (so the ship settles, and a bounce
+   * is not held as a climb) until the throttle opens or the ship is well clear.
+   */
+  grounded = false;
 
   reset(): void {
+    this.grounded = false;
     this.phase = 'flying';
     this.legsDamaged = false;
     this.touchdown = null;
@@ -115,6 +121,7 @@ export function landingContacts(
   if (world.probeGround(body.position, _normal, _ground) > CONTACT_RANGE) {
     landing.feet = 0;
     landing.airborne += dt;
+    landing.grounded = false;
     if (landing.phase === 'contact') landing.phase = 'flying';
     return out;
   }
@@ -154,6 +161,7 @@ export function landingContacts(
   }
   landing.airborne = 0;
   landing.phase = 'contact';
+  landing.grounded = true;
   _nose.set(0, 0, -1).applyQuaternion(body.orientation);
   if ((Math.acos(Math.min(1, _nose.dot(_up))) * 180) / Math.PI > TIP_OVER) {
     out.hazard = { kind: 'crashed', body: 'Moon', detail: 'the ship tipped over' };

@@ -182,6 +182,17 @@ body {
   color: #5fd4ff;
 }
 
+.hud-marker.pad,
+.hud-edge.pad {
+  font-size: 22px;
+  color: #ffd84a;
+}
+
+.hud-marker.impact,
+.hud-edge.impact {
+  color: #ff7a5a;
+}
+
 .hud-marker.ship,
 .hud-edge.ship {
   font-size: 14px;

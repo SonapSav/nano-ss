@@ -12,6 +12,8 @@ import {
   type WarpDropReason,
 } from '../world/timeWarp';
 import { TARGET_NEAR, type World } from '../world/world';
+import type { Spaceport } from '../world/sites';
+import { padOffsetAt } from './guidance';
 import {
   Landing,
   holdLanded,
@@ -46,6 +48,8 @@ export interface PhysicsState {
   insideTargetZone: boolean;
   hyper: Hyperdrive;
   landing: Landing;
+  /** Spaceport selected as the navigation target (Tab), or null for the practice target (Stage 5c). */
+  navTarget: Spaceport | null;
 }
 
 export type HyperEvent = 'charging' | 'blocked' | 'aborted' | 'engaged' | 'arrived' | 'dropped';
@@ -76,6 +80,7 @@ export function createPhysicsState(
     insideTargetZone: ship.body.position.distanceTo(world.target.position) < TARGET_WARP_ZONE,
     hyper: new Hyperdrive(),
     landing: new Landing(),
+    navTarget: null,
   };
 }
 
@@ -93,20 +98,42 @@ export function bodiesNow(world: World): BodyNow[] {
 
 const _heading = new Vector3();
 
-/** Puts the ship into a circular orbit around the body it is in, ending the jump. */
+/**
+ * Puts the ship into a circular orbit around the body it is in, ending the
+ * jump. At the Moon with a spaceport targeted, the orbit passes over its pad
+ * (where the pad will be when the ship gets there, as the Moon turns).
+ */
 function dropOut(s: PhysicsState, bodies: BodyNow[], at?: BodyNow | null): void {
   const body = s.ship.body;
   const refInfo = s.world.referenceBody(body.position);
   const ref = at ?? bodies.find((b) => b.info === refInfo) ?? bodies[0];
-  if (ref) circularOrbitVelocity(body.position, _heading, ref, body.velocity);
+  let over: Vector3 | undefined;
+  if (ref?.info === MOON && s.navTarget) {
+    _radialNow.subVectors(body.position, ref.position);
+    const r = _radialNow.length();
+    const rate = Math.sqrt(MOON.gm / (r * r * r));
+    over = padOffsetAt(s.world, s.navTarget, 0, _over);
+    for (let i = 0; i < 3; i++) {
+      const angle = _radialNow.angleTo(over);
+      over = padOffsetAt(s.world, s.navTarget, angle / rate, _over);
+    }
+  }
+  if (ref) circularOrbitVelocity(body.position, _heading, ref, body.velocity, over);
+  // Arrived in this body's sphere: not a change of reference for the time warp afterwards.
+  s.reference = refInfo;
   s.hyper.finishDrop();
 }
+const _radialNow = new Vector3();
+const _over = new Vector3();
 
 const _orbital = new Vector3();
 const _faReference = new Vector3();
 const _relative = new Vector3();
 
 const _noTranslation = new Vector3();
+const _gravity = new Vector3();
+/** Below this height over the lunar ground, FA's reference is the ground (m). */
+export const GROUND_FA_ALTITUDE = 20_000;
 
 /**
  * One step in hyperdrive: time warp held at 1×, the pilot steers with the
@@ -185,9 +212,28 @@ export function stepPhysics(s: PhysicsState, realDt: number): StepEvents {
     commands.rcs.translation.set(0, 0, 0);
   } else {
     const nearTarget = body.position.distanceTo(world.target.position) < TARGET_NEAR;
+    // Low over the Moon, FA works relative to the ground and holds against gravity (Stage 5c).
+    if (controls.throttle > 0) landing.grounded = false;
+    const overGround =
+      !nearTarget &&
+      !landing.grounded &&
+      landing.phase !== 'landed' &&
+      world.referenceBody(body.position) === MOON &&
+      world.moonGroundAltitude(body.position) < GROUND_FA_ALTITUDE;
+    if (overGround) {
+      world.moonFrame.groundVelocity(body.position, _faReference);
+      // The Moon's pull relative to its ground (Earth's tide is negligible here).
+      _gravity.subVectors(world.moonPosition, body.position);
+      _gravity.multiplyScalar(MOON.gm / _gravity.lengthSq() / _gravity.length());
+    }
     computeCommands(fc, ship, controls, commands, {
       orbitalVelocity: _orbital,
-      faReference: nearTarget ? world.targetFrameVelocity(body.position, _faReference) : null,
+      faReference: nearTarget
+        ? world.targetFrameVelocity(body.position, _faReference)
+        : overGround
+          ? _faReference
+          : null,
+      gravity: overGround ? _gravity : null,
     });
   }
 

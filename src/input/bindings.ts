@@ -26,6 +26,7 @@ export type PressAction =
   | 'toggleReverse'
   | 'toggleMap'
   | 'toggleLandingLights'
+  | 'cycleTarget'
   | 'hyperEngage'
   | 'hyperDrop'
   | 'warpUp'
@@ -49,6 +50,7 @@ export const PRESS_ACTIONS: readonly PressAction[] = [
   'toggleReverse',
   'toggleMap',
   'toggleLandingLights',
+  'cycleTarget',
   'hyperEngage',
   'hyperDrop',
   'warpUp',
@@ -73,6 +75,7 @@ export const PRESS_ACTION_LABELS: Record<PressAction, string> = {
   toggleReverse: 'Reverse (retro engines) on/off',
   toggleMap: 'Map view on/off',
   toggleLandingLights: 'Landing lights on/off',
+  cycleTarget: 'Next navigation target',
   hyperEngage: 'Hyperdrive: charge and engage',
   hyperDrop: 'Hyperdrive: drop out',
   warpUp: 'Time warp faster',
@@ -129,6 +132,7 @@ export const DEFAULT_BINDINGS: Readonly<Bindings> = {
     toggleReverse: ['KeyB'],
     toggleMap: ['KeyM'],
     toggleLandingLights: ['KeyP'],
+    cycleTarget: ['Tab'],
     hyperEngage: ['KeyU'],
     hyperDrop: ['KeyO'],
     warpUp: ['Period'],

@@ -107,4 +107,17 @@ describe('arrival orbit', () => {
       expect(el.periapsisRadius - MOON.radius).toBeCloseTo(100_000, -1);
     });
   }
+
+  it('passes over a given point (a targeted pad), heading toward it', () => {
+    const position = new Vector3(384_400_000 - MOON.radius - 100_000, 0, 0);
+    const pad = new Vector3(0.3, -0.6, 0.74).normalize().multiplyScalar(MOON.radius);
+    const v = circularOrbitVelocity(position, new Vector3(1, 0.3, 0.1), moon, new Vector3(), pad);
+    const relative = position.clone().sub(moon.position);
+    const normal = relative.clone().cross(v.clone().sub(moon.velocity)).normalize();
+    expect(Math.abs(normal.dot(pad.clone().normalize()))).toBeLessThan(1e-9);
+    // Moving toward the pad: its direction has a positive component along the velocity.
+    expect(v.clone().sub(moon.velocity).dot(pad)).toBeGreaterThan(0);
+    const el = orbitElements(relative, v.sub(moon.velocity), MOON.gm);
+    expect(el.eccentricity).toBeLessThan(1e-9);
+  });
 });

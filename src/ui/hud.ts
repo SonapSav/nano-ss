@@ -64,6 +64,13 @@ export interface HudData {
   hyper: HudHyper;
   /** Landing status line (contact, landed, services, leg damage), or null (Stage 5). */
   landing: string | null;
+  /**
+   * Spaceport guidance (Stage 5c), or null when the practice target is selected:
+   * its lines replace TARGET and STOP; pad (◎) and impact (✕) in render space.
+   */
+  guidance: { lines: string[]; pad: Vector3; impact: Vector3 | null } | null;
+  /** What VEL is relative to. */
+  velocityFrame: 'target' | 'ground';
   /** Periapsis and apoapsis in render space (ship at the origin), or null. */
   periapsis: Vector3 | null;
   apoapsis: Vector3 | null;
@@ -164,6 +171,8 @@ export function createHud(parent: HTMLElement) {
   const peMarker = marker('apsis', 'Pe');
   const apMarker = marker('apsis', 'Ap');
   const shipMarker = marker('ship', '▲');
+  const padMarker = marker('pad', '◎');
+  const impactMarker = marker('impact', '✕');
   const pointDir = new Vector3();
   /** Direction from the camera to a render-space point. */
   const toward = (p: Vector3, camera: PerspectiveCamera) =>
@@ -237,7 +246,12 @@ export function createHud(parent: HTMLElement) {
       place(nose, data.forward, camera, data.camera === 'chase');
       place(prograde, velocityDir, camera, moving);
       place(retrograde, retroDir, camera, moving);
-      place(target, data.targetDirection, camera, data.targetDistance > 1);
+      const g = data.guidance;
+      place(target, data.targetDirection, camera, !g && data.targetDistance > 1);
+      if (g) place(padMarker, toward(g.pad, camera), camera, true);
+      else place(padMarker, ORIGIN, camera, false);
+      if (g?.impact) place(impactMarker, toward(g.impact, camera), camera, true);
+      else place(impactMarker, ORIGIN, camera, false);
       place(moonMarker, data.moonDirection, camera, true);
       place(shipMarker, toward(ORIGIN, camera), camera, data.camera === 'map');
       if (data.periapsis) place(peMarker, toward(data.periapsis, camera), camera, true);
@@ -266,14 +280,22 @@ export function createHud(parent: HTMLElement) {
             ]),
         hyperLine(data.hyper),
         ...(data.landing ? [data.landing] : []),
-        `TARGET   ${formatDistance(data.targetDistance)}  closing ${formatSpeed(data.closingSpeed)}`,
-        `VEL      fwd ${signed(data.velocityShip.z)}  right ${signed(data.velocityShip.x)}  up ${signed(data.velocityShip.y)} m/s (to target)`,
+        ...(data.guidance
+          ? data.guidance.lines
+          : [
+              `TARGET   ${formatDistance(data.targetDistance)}  closing ${formatSpeed(data.closingSpeed)}   (Tab: next)`,
+            ]),
+        `VEL      fwd ${signed(data.velocityShip.z)}  right ${signed(data.velocityShip.x)}  up ${signed(data.velocityShip.y)} m/s (to ${data.velocityFrame})`,
         `RATES    P ${rate(data.pitchRate)}  Y ${rate(data.yawRate)}  R ${rate(data.rollRate)} °/s`,
         `THROTTLE ${pct(data.throttle)}${data.inputDevice && data.throttleSource === 'lever' ? '  (lever)' : ''}`,
         `MAIN     ${pct(data.mainPropellantFraction)}  Δv ${formatSpeed(data.deltaV)}`,
-        ts > 0.05
-          ? `STOP     to target: main ${seconds(data.stopMain)} | retro ${seconds(data.stopRetro)}  need Δv ${formatSpeed(ts)}${ts > data.deltaV ? '  NOT ENOUGH Δv' : ''}`
-          : 'STOP     matched with target',
+        ...(data.guidance
+          ? []
+          : [
+              ts > 0.05
+                ? `STOP     to target: main ${seconds(data.stopMain)} | retro ${seconds(data.stopRetro)}  need Δv ${formatSpeed(ts)}${ts > data.deltaV ? '  NOT ENOUGH Δv' : ''}`
+                : 'STOP     matched with target',
+            ]),
         `RCS      ${pct(data.rcsPropellantFraction)}${data.rcsActive ? '  firing' : ''}`,
         `ASSIST   ${ASSIST_LABEL[data.assist]}   FA ${data.fa ? 'ON' : 'OFF'}${data.cruise ? `   CRUISE ${signed(data.cruise)} m/s` : ''}${data.reverse ? '   REVERSE' : ''}`,
         `CAMERA   ${data.camera.toUpperCase()}`,

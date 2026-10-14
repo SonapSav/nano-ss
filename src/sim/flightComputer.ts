@@ -53,8 +53,14 @@ export interface FlightComputer {
 export interface FlightContext {
   /** Velocity relative to the body being orbited: prograde/retrograde follow it. */
   orbitalVelocity: Vector3;
-  /** Velocity FA matches (the nearby target's), or null for no translational FA (far from targets). */
+  /** Velocity FA matches (the nearby target's or the ground's), or null for no translational FA. */
   faReference: Vector3 | null;
+  /**
+   * Gravity to hold against (m/s², world) when flying over the ground (Stage 5c):
+   * with the nose near vertical, FA adds the engine thrust that cancels it, so
+   * "stop" is a hover and cruise is a steady climb or descent rate.
+   */
+  gravity?: Vector3 | null;
 }
 
 export interface FlightCommands {
@@ -80,6 +86,8 @@ const FA_DRIFT_RESPONSE = 1;
 const FA_BRAKE_RESPONSE = 2;
 const FA_RCS_SPEED = 0.3;
 const FA_DEADBAND = 0.005;
+/** Gravity is held against when the nose is within 45° of straight up. */
+const HOVER_COS = Math.SQRT1_2;
 
 export function createFlightComputer(mode: AssistMode = 'off', fa = true): FlightComputer {
   return { mode, holdTarget: null, fa, cruise: null, stopAfterThrottle: false };
@@ -178,7 +186,15 @@ export function computeCommands(
       }
       // Hold the cruise speed: engines for big differences, RCS for the fine part.
       const excess = forwardSpeed - fc.cruise;
-      if (excess > FA_RCS_SPEED) {
+      _nose.set(0, 0, -1).applyQuaternion(body.orientation);
+      const gravity = context?.gravity;
+      const gForward = gravity ? gravity.dot(_nose) : 0;
+      if (gravity && -gForward > gravity.length() * HOVER_COS) {
+        // Nose up: the main engine carries the weight, plus a proportional correction.
+        const need = -excess / FA_BRAKE_RESPONSE - gForward;
+        if (need >= 0) engines.main = Math.min(1, need / (ship.config.mainEngine.thrust / mass));
+        else engines.retro = Math.min(1, -need / (ship.config.retroEngine.thrust / mass));
+      } else if (excess > FA_RCS_SPEED) {
         const a = ship.config.retroEngine.thrust / mass;
         engines.retro = Math.min(1, excess / (FA_BRAKE_RESPONSE * a));
       } else if (excess < -FA_RCS_SPEED) {

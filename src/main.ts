@@ -13,7 +13,7 @@ import { createSpaceScene } from './render/spaceScene';
 import { loadStarfield } from './render/starfield';
 import { loadTextures } from './render/textures';
 import { loadSpaceports } from './world/sites';
-import { EARTH, MOON_SOI } from './world/bodies';
+import { EARTH, MOON, MOON_SOI } from './world/bodies';
 import { createControlState, nextAssistMode } from './sim/controls';
 import { commandStop, createFlightComputer, setAssistMode } from './sim/flightComputer';
 import { copyBodyState, createBodyState } from './sim/rigidBody';
@@ -33,6 +33,8 @@ import { createPhysicsState, stepPhysics, type HyperEvent } from './game/physics
 import { C } from './world/hyperdrive';
 import { HYPER_MESSAGES, hyperHud } from './game/hyperHud';
 import { landingLine, landingMessage } from './game/landingHud';
+import { computeGuidance, type Guidance } from './game/guidance';
+import { guidanceLines } from './game/guidanceHud';
 import { SimClock, gmstRadians } from './world/time';
 import { TARGET_NEAR, World } from './world/world';
 
@@ -177,6 +179,7 @@ async function main(): Promise<void> {
     copyBodyState(ship.body, previous);
     physics.reference = world.referenceBody(ship.body.position);
     physics.insideTargetZone = false;
+    physics.navTarget = startPort;
   }
   const moonOrbit = new Float32Array(361 * 3);
   const moonPoint = new Vector3();
@@ -241,6 +244,11 @@ async function main(): Promise<void> {
   const inverseOrientation = new Quaternion();
   let statsVisible = true;
   let landingLights = false;
+  /** Spaceport guidance, recomputed 10 times a second (the impact prediction is not free). */
+  let guidance: Guidance | null = null;
+  let guidanceAt = 0;
+  const padRender = new Vector3();
+  const impactRender = new Vector3();
   let last = performance.now();
 
   await renderer.setAnimationLoop((now: number) => {
@@ -300,6 +308,18 @@ async function main(): Promise<void> {
         case 'toggleLandingLights':
           landingLights = !landingLights;
           break;
+        case 'cycleTarget': {
+          // Practice target, then each spaceport, then back.
+          const targets = [null, ...spaceports];
+          const next = targets[(targets.indexOf(physics.navTarget) + 1) % targets.length] ?? null;
+          physics.navTarget = next;
+          guidance = null;
+          notice = {
+            text: `Target: ${next ? next.title : 'practice target (Earth orbit)'}`,
+            until: now + 3000,
+          };
+          break;
+        }
         case 'pause':
           setPaused(!loop.paused);
           break;
@@ -409,13 +429,26 @@ async function main(): Promise<void> {
       ship.body.velocity,
       world.targetFrameVelocity(ship.body.position, frameVelocity),
     );
+    const port = physics.navTarget;
+    if (!port) guidance = null;
+    else if (!guidance || now - guidanceAt > 100) {
+      guidance = computeGuidance(world, port, ship.body.position, ship.body.velocity);
+      guidanceAt = now;
+    }
+    // With a spaceport targeted, VEL is over the ground (near the Moon).
+    const overGround = port !== null && referenceBody === MOON;
+    const shipVelocity = overGround
+      ? velocityShip.subVectors(
+          ship.body.velocity,
+          world.moonFrame.groundVelocity(ship.body.position, frameVelocity),
+        )
+      : velocityShip.copy(relativeVelocity);
     const targetSpeed = relativeVelocity.length();
     toMoon.subVectors(world.moonPosition, ship.body.position);
     hud.update(
       {
         velocity: orbitalVelocity,
-        velocityShip: velocityShip
-          .copy(relativeVelocity)
+        velocityShip: shipVelocity
           .applyQuaternion(inverseOrientation.copy(ship.body.orientation).invert())
           .multiply(FLIP_Z),
         targetSpeed,
@@ -442,6 +475,19 @@ async function main(): Promise<void> {
           controls.throttle,
         ),
         landing: landingLine(physics.landing),
+        velocityFrame: overGround ? 'ground' : 'target',
+        guidance:
+          port && guidance
+            ? {
+                lines: guidanceLines(guidance, physics.landing.phase === 'landed'),
+                pad: world.moonFrame
+                  .toWorld(port.site.padPoint(padRender), padRender)
+                  .sub(renderPosition),
+                impact: guidance.impact
+                  ? world.moonFrame.toWorld(guidance.impact.local, impactRender).sub(renderPosition)
+                  : null,
+              }
+            : null,
         warp: physics.warp.factor,
         notice: notice && performance.now() < notice.until ? notice.text : null,
         alert,
