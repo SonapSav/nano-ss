@@ -20,6 +20,8 @@ export interface ShipConfig {
   rcsPropellantCapacity: number;
   /** Thrust in N along the -Z (forward) body axis; Isp in s. */
   mainEngine: { thrust: number; isp: number };
+  /** Nose engines thrusting along +Z (braking), fed from the main tank (D-042). */
+  retroEngine: { thrust: number; isp: number };
   rcs: {
     /** Translation force per axis, in N. */
     force: number;
@@ -37,13 +39,21 @@ export interface RcsCommand {
   translation: Vector3;
 }
 
+/** Main and retro engine commands, 0 to 1 each. */
+export interface EngineCommand {
+  main: number;
+  retro: number;
+}
+
 export interface Ship {
   config: ShipConfig;
   body: BodyState;
   mainPropellant: number;
   rcsPropellant: number;
-  /** Throttle actually applied in the last step (0 when out of propellant). */
+  /** Main engine throttle actually applied in the last step (0 when out of propellant). */
   appliedThrottle: number;
+  /** Retro engine throttle actually applied in the last step. */
+  appliedRetro: number;
   /** RCS command applied in the last step (zero when out of propellant). */
   appliedRcs: RcsCommand;
 }
@@ -55,6 +65,7 @@ export function createShip(config: ShipConfig): Ship {
     mainPropellant: config.mainPropellantCapacity,
     rcsPropellant: config.rcsPropellantCapacity,
     appliedThrottle: 0,
+    appliedRetro: 0,
     appliedRcs: { rotation: new Vector3(), translation: new Vector3() },
   };
 }
@@ -69,6 +80,7 @@ export function resetShip(ship: Ship): void {
   ship.mainPropellant = fresh.mainPropellant;
   ship.rcsPropellant = fresh.rcsPropellant;
   ship.appliedThrottle = 0;
+  ship.appliedRetro = 0;
   ship.appliedRcs.rotation.set(0, 0, 0);
   ship.appliedRcs.translation.set(0, 0, 0);
 }
@@ -107,20 +119,30 @@ export function pilotTranslationToBody(controls: ControlState, out: Vector3): Ve
 const _force = new Vector3();
 const _torque = new Vector3();
 
+/** Acceleration of an engine at full thrust with the current mass (m/s²). */
+export function engineAcceleration(ship: Ship, engine: 'main' | 'retro'): number {
+  const { thrust } = engine === 'main' ? ship.config.mainEngine : ship.config.retroEngine;
+  return thrust / shipMass(ship);
+}
+
 /**
  * Applies engine and RCS commands for `dt` seconds: consumes propellant,
  * then integrates the body using the mass at the middle of the step.
  */
-export function stepShip(ship: Ship, throttle: number, rcs: RcsCommand, dt: number): void {
-  const { mainEngine, rcs: rcsConfig } = ship.config;
+export function stepShip(ship: Ship, engines: EngineCommand, rcs: RcsCommand, dt: number): void {
+  const { mainEngine, retroEngine, rcs: rcsConfig } = ship.config;
 
-  // Main engine: mass flow = thrust / (Isp·g0).
-  let mainBurn = ((throttle * mainEngine.thrust) / (mainEngine.isp * G0)) * dt;
-  let mainFraction = throttle;
-  if (mainBurn > ship.mainPropellant) {
-    mainFraction = mainBurn > 0 ? (throttle * ship.mainPropellant) / mainBurn : 0;
-    mainBurn = ship.mainPropellant;
+  // Main and retro engines share the main tank: mass flow = thrust / (Isp·g0).
+  const mainFlow = (engines.main * mainEngine.thrust) / (mainEngine.isp * G0);
+  const retroFlow = (engines.retro * retroEngine.thrust) / (retroEngine.isp * G0);
+  let tankBurn = (mainFlow + retroFlow) * dt;
+  let tankFraction = 1;
+  if (tankBurn > ship.mainPropellant) {
+    tankFraction = tankBurn > 0 ? ship.mainPropellant / tankBurn : 0;
+    tankBurn = ship.mainPropellant;
   }
+  const mainFraction = engines.main * tankFraction;
+  const retroFraction = engines.retro * tankFraction;
 
   // RCS: translation thrust plus the thrust needed for each torque via its lever arm.
   const rot = rcs.rotation;
@@ -138,17 +160,19 @@ export function stepShip(ship: Ship, throttle: number, rcs: RcsCommand, dt: numb
   }
 
   const massBefore = shipMass(ship);
-  ship.mainPropellant -= mainBurn;
+  ship.mainPropellant -= tankBurn;
   ship.rcsPropellant -= rcsBurn;
-  const midMass = massBefore - (mainBurn + rcsBurn) / 2;
+  const midMass = massBefore - (tankBurn + rcsBurn) / 2;
 
   ship.appliedThrottle = mainFraction;
+  ship.appliedRetro = retroFraction;
   ship.appliedRcs.rotation.copy(rot).multiplyScalar(rcsFraction);
   ship.appliedRcs.translation.copy(tr).multiplyScalar(rcsFraction);
 
   const rcsForce = rcsConfig.force * rcsFraction;
+  const axial = retroFraction * retroEngine.thrust - mainFraction * mainEngine.thrust;
   _force
-    .set(tr.x * rcsForce, tr.y * rcsForce, tr.z * rcsForce - mainFraction * mainEngine.thrust)
+    .set(tr.x * rcsForce, tr.y * rcsForce, tr.z * rcsForce + axial)
     .applyQuaternion(ship.body.orientation);
 
   _torque.set(

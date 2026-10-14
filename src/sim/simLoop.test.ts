@@ -1,17 +1,17 @@
 import { Vector3 } from 'three/webgpu';
 import { describe, expect, it } from 'vitest';
 import { createShip, stepShip, type RcsCommand } from './ship';
-import { placeholderSpaceplane } from './ships/placeholderSpaceplane';
+import { placeholderSpacecraft } from './ships/placeholderSpacecraft';
 import { FixedStepLoop } from './simLoop';
 
 function flyAt(frameHz: number, seconds: number) {
-  const ship = createShip(placeholderSpaceplane);
+  const ship = createShip(placeholderSpacecraft);
   const rcs: RcsCommand = {
     rotation: new Vector3(0.3, -0.2, 0.1),
     translation: new Vector3(0, 1, 0),
   };
   const loop = new FixedStepLoop((dt) => {
-    stepShip(ship, 0.8, rcs, dt);
+    stepShip(ship, { main: 0.8, retro: 0 }, rcs, dt);
   });
   for (let i = 0; i < frameHz * seconds; i++) loop.advance(1 / frameHz);
   return { ship, loop, rcs };

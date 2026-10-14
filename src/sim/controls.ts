@@ -12,21 +12,26 @@ export interface ControlState {
   right: number;
   up: number;
   forward: number;
-  /** Main engine throttle, 0 to 1. */
+  /** Throttle, 0 to 1: drives the main engine, or the retro engines when `reverse` is on. */
   throttle: number;
+  /** Reverse toggle (D-042): the throttle drives the nose retro engines. */
+  reverse: boolean;
 }
 
-export type AssistMode = 'off' | 'kill-rotation' | 'hold-attitude';
+export type AssistMode = 'off' | 'kill-rotation' | 'hold-attitude' | 'prograde' | 'retrograde';
 
+/** Modes the T key cycles through; prograde and retrograde have their own keys. */
 export const ASSIST_MODES: readonly AssistMode[] = ['off', 'kill-rotation', 'hold-attitude'];
 
 export function nextAssistMode(mode: AssistMode): AssistMode {
-  const next = ASSIST_MODES[(ASSIST_MODES.indexOf(mode) + 1) % ASSIST_MODES.length];
-  return next ?? 'off';
+  const index = ASSIST_MODES.indexOf(mode);
+  // From prograde or retrograde, T goes back to off.
+  if (index < 0) return 'off';
+  return ASSIST_MODES[(index + 1) % ASSIST_MODES.length] ?? 'off';
 }
 
 export function createControlState(): ControlState {
-  return { pitch: 0, yaw: 0, roll: 0, right: 0, up: 0, forward: 0, throttle: 0 };
+  return { pitch: 0, yaw: 0, roll: 0, right: 0, up: 0, forward: 0, throttle: 0, reverse: false };
 }
 
 export function clampUnit(value: number): number {
