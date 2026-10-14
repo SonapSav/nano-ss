@@ -26,6 +26,8 @@ export interface HudData {
   assist: AssistMode;
   camera: CameraMode;
   targetDistance: number;
+  /** Unit direction from the ship to the target, world space. */
+  targetDirection: Vector3;
   closingSpeed: number;
   rcsActive: boolean;
   paused: boolean;
@@ -84,6 +86,7 @@ export function createHud(parent: HTMLElement) {
   const nose = marker('nose', '+');
   const prograde = marker('prograde', '⊕');
   const retrograde = marker('retrograde', '⊗');
+  const target = marker('target', '◇');
   root.append(text, paused);
   parent.appendChild(root);
 
@@ -139,6 +142,7 @@ export function createHud(parent: HTMLElement) {
       place(nose, data.forward, camera, data.camera === 'chase');
       place(prograde, velocityDir, camera, moving);
       place(retrograde, retroDir, camera, moving);
+      place(target, data.targetDirection, camera, data.targetDistance > 1);
       paused.hidden = !data.paused;
 
       // Text changes are throttled to 10 per second; markers move every frame.

@@ -160,3 +160,13 @@ body {
 .hud-marker.retrograde {
   color: #e8c98f;
 }
+
+/* Elements styled with their own display value would otherwise ignore the hidden attribute. */
+[hidden] {
+  display: none !important;
+}
+
+.hud-marker.target,
+.hud-edge.target {
+  color: #7fd8ff;
+}

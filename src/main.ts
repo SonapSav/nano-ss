@@ -134,6 +134,7 @@ async function main(): Promise<void> {
   const renderOrientation = new Quaternion();
   const forward = new Vector3();
   const toTarget = new Vector3();
+  const targetDirection = new Vector3();
   const velocityShip = new Vector3();
   const inverseOrientation = new Quaternion();
   let statsVisible = true;
@@ -255,6 +256,7 @@ async function main(): Promise<void> {
         assist: fc.mode,
         camera: rig.mode,
         targetDistance,
+        targetDirection: targetDirection.copy(toTarget).normalize(),
         closingSpeed: targetDistance > 0 ? ship.body.velocity.dot(toTarget) / targetDistance : 0,
         rcsActive,
         paused: loop.paused,

@@ -119,7 +119,7 @@ Esc (or ST) opens the pause panel: click any key, axis, or button binding and pr
 
 - **VEL:** velocity along the ship's own axes (forward, right, up): what to watch when docking.
 - **STOP:** burn time to stop with the main or retro engines, and the Δv needed; warns when the remaining Δv is not enough.
-- **Markers:** + nose, ⊕ direction of motion, ⊗ opposite (amber); when off screen, an arrow at the screen edge points to them.
+- **Markers:** + nose, ⊕ direction of motion, ⊗ opposite (amber), ◇ target (blue); when off screen, an arrow at the screen edge points to them.
 - **RCS plumes** on the hull show which thrusters fire; **motion dust** (switchable) shows slow drift.
 
 ## Debug options
