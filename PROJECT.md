@@ -84,9 +84,37 @@ nano-ss/
 
 Items discussed but not yet decided. Each entry records when it was raised, who owns the decision, and the actions expected from them. When an item is decided, move it to **Resolved Decisions** with the outcome and date.
 
-_None currently._
+### D-021: Cockpit
+
+- **Raised:** 2026-10-14
+- **Owner:** Panos
+- **Status:** Open
+- **Context:** (a) Full 3D cockpit interior with instruments, seen from the pilot's seat: the most immersive, but the most detailed model to build, and it competes with the second-monitor instruments (D-011). (b) Outside camera plus a heads-up display, with the instruments on the second monitor. (c) A simpler cockpit frame (canopy, struts, a few key displays) plus the second monitor for detailed instruments. Recommendation: (c), with (b) available as a camera option.
+- **Action expected (Panos):** Choose (a), (b), or (c).
+
+### D-022: Asset licensing and storage
+
+- **Raised:** 2026-10-14
+- **Owner:** Panos
+- **Status:** Open
+- **Context:** The repo is public, so every model, texture, and data file committed to it is redistributed. Proposal: only commit assets that are our own, public domain, CC0, or CC-BY (with credit); record every third-party asset in an `ASSETS.md` file (source, author, license, link). NASA imagery is generally free to use, but NASA logos and insignia are restricted and nothing may imply NASA endorsement. Large binary files: either Git LFS (GitHub's free quota is small) or keep source assets outside git and download them during the build. Bought assets with restrictive licenses must stay out of the repo.
+- **Action expected (Panos):** Approve the licensing rule, and choose Git LFS or download-at-build for large assets.
 
 ## Resolved Decisions
+
+### D-023: Blender setup and MCP connection
+
+- **Raised:** 2026-10-14
+- **Decided:** 2026-10-14
+- **Owner:** Panos
+- **Outcome:** Blender 5.2.2 LTS from blender.org (Debian 13's own package, 4.3.2, is too old). Claude Code connects through the official Blender Foundation MCP server, chosen over the community `blender-mcp` server for maintenance and built-in Blender docs search, and to avoid its mixed-license asset integrations (D-022). Every Blender code call stays on manual approval in Claude Code, because the server runs code inside Blender without guards and with Panos's user permissions. `.blend` files are kept under version control or backed up. Cycles renders and texture baking will likely run on the CPU, since the Vega 7 is probably not supported for GPU rendering.
+
+### D-020: Who makes the 3D models
+
+- **Raised:** 2026-10-14
+- **Decided:** 2026-10-14
+- **Owner:** Panos
+- **Outcome:** Panos models the assets in Blender, with Claude assisting through a Blender MCP connection (D-023): Claude handles precise, repetitive, and technical work (exact-dimension kit parts, materials, UVs, detail levels, export settings, budget checks) and explains techniques, while Panos makes the creative decisions. Greybox placeholders until the engine works. Stations and spacedrome buildings as a modular kit assembled in code. Planets, Moon, and stars from real data (D-005). Free Blender add-ons only.
 
 ### D-019: Landing on airless bodies and leaving Earth
 
