@@ -7,7 +7,7 @@ const anyHeld = (held: ReadonlySet<string>, codes: readonly string[]) =>
 /** Writes held keys into the control state; throttle ramps by `dt` seconds. */
 export function applyKeyboard(
   held: ReadonlySet<string>,
-  bindings: Bindings,
+  bindings: Readonly<Bindings>,
   controls: ControlState,
   dt: number,
 ): void {
@@ -28,17 +28,14 @@ export function applyKeyboard(
 export class KeyboardInput {
   readonly held = new Set<string>();
   private readonly pressed: PressAction[] = [];
-  private readonly codes: Set<string>;
+  private codes = new Set<string>();
   private readonly pressByCode = new Map<string, PressAction>();
 
   constructor(
     target: EventTarget,
-    readonly bindings: Bindings,
+    public bindings: Readonly<Bindings>,
   ) {
-    this.codes = boundCodes(bindings);
-    for (const [action, list] of Object.entries(bindings.press) as [PressAction, string[]][]) {
-      for (const code of list) this.pressByCode.set(code, action);
-    }
+    this.setBindings(bindings);
     target.addEventListener('keydown', (e) => {
       this.onKeyDown(e as KeyboardEvent);
     });
@@ -48,6 +45,17 @@ export class KeyboardInput {
     target.addEventListener('blur', () => {
       this.held.clear();
     });
+  }
+
+  /** Switches to new bindings (after rebinding in the controls panel). */
+  setBindings(bindings: Readonly<Bindings>): void {
+    this.bindings = bindings;
+    this.codes = boundCodes(bindings);
+    this.pressByCode.clear();
+    for (const [action, list] of Object.entries(bindings.press) as [PressAction, string[]][]) {
+      for (const code of list) this.pressByCode.set(code, action);
+    }
+    this.held.clear();
   }
 
   private onKeyDown(e: KeyboardEvent): void {
