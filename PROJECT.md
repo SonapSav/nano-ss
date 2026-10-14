@@ -37,9 +37,12 @@ Decided:
 - **Browser:** Chromium-based (Chrome/Chromium). Firefox is not a target: it was about 2x slower with WebGPU in a previous sim.
 - **Flight model:** realistic Newtonian physics with orbital mechanics (D-004)
 - **Players:** single-player (D-008)
-- **Universe:** real solar system at real scale (D-005), with hyperdrive speed bands for travel (D-015)
+- **Universe:** real solar system at real scale (D-005), with hyperdrive speed bands for travel (D-015) and two-level time warp (D-016)
 
-Still open: renderer and physics library (D-012), HTTPS certificate approach (D-013).
+- **Renderer:** Three.js WebGPU renderer with automatic WebGL2 fallback (D-012)
+- **HTTPS:** certificates from a local certificate authority made with mkcert (D-013)
+
+Still open: collision library (D-017).
 
 ## Hardware Baseline
 
@@ -79,44 +82,51 @@ nano-ss/
 
 Items discussed but not yet decided. Each entry records when it was raised, who owns the decision, and the actions expected from them. When an item is decided, move it to **Resolved Decisions** with the outcome and date.
 
-### D-012: Renderer and physics library
-
-- **Raised:** 2026-10-14
-- **Owner:** Panos
-- **Status:** Open
-- **Context:** Recommended renderer: Three.js WebGPU renderer with automatic WebGL2 fallback (WebGPU confirmed on the dev machine; the fallback covers Windows and other machines). Orbital mechanics and flight physics will be custom code either way. Open question: whether a collision library (e.g. Rapier) is needed for landing and docking contact, or whether simple custom contact checks are enough. Can be decided during the flight core phase.
-- **Action expected (Panos):** Confirm the renderer. Decide on the collision library when the flight core is built.
-
-### D-013: HTTPS certificate for local network access
-
-- **Raised:** 2026-10-14
-- **Owner:** Panos
-- **Status:** Open
-- **Context:** Browsers only allow WebGPU and gamepads on secure pages. `http://localhost` is secure, but `http://<server-ip>:8787` opened from another machine is not, so it would lose WebGPU and the HOTAS. nginx must serve HTTPS on 8787. Options:
-  - **mkcert (recommended):** create a small local certificate authority, and install its root certificate once on each machine that opens the sim. No browser warnings.
-  - **Self-signed certificate:** simplest, but every machine shows a security warning, and the certificate exception must be accepted on each one.
-  - **Real certificate** for a domain you own (Let's Encrypt with a DNS challenge): no per-machine setup, but needs a domain and renewal.
-- **Action expected (Panos):** Choose one.
-
 ### D-014: Atmospheric flight
 
 - **Raised:** 2026-10-14
 - **Owner:** Panos
-- **Status:** Open
+- **Status:** Deferred (2026-10-14) until planets with atmospheres are added. The first stage is Earth and Moon, and the Moon has no atmosphere.
 - **Context:** Some spacedromes may be on planets with atmospheres (e.g. Earth, Mars). With a realistic flight model (D-004), atmosphere means drag, aerodynamic forces, and re-entry heating during landing. Ignoring atmosphere makes landing on those planets unrealistic; airless bodies (e.g. the Moon) avoid the issue entirely. Depends on D-005.
 - **Action expected (Panos):** Choose whether atmospheres affect flight, or whether the first spacedromes are on airless bodies only.
 
-### D-016: Hyperdrive cost and time warp
+### D-017: Collision library
 
-- **Raised:** 2026-10-14 (split out of D-015)
+- **Raised:** 2026-10-14
 - **Owner:** Panos
-- **Status:** Open
-- **Context:** Two hyperdrive questions had no proposal when D-015 was accepted:
-  1. **Cost:** whether hyperdrive uses fuel or energy, needs a spool-up or cooldown time, or is free. A spool-up of a few seconds adds immersion and stops instant escapes; a fuel or energy cost adds route planning.
-  2. **Time warp:** whether normal-space time compression is still needed (e.g. waiting in orbit, timing a rendezvous with a station), and up to what factor.
-- **Action expected (Panos):** Decide both.
+- **Status:** Open (decide during the flight core phase)
+- **Context:** Orbital mechanics and flight physics will be custom code. Open question: whether a collision library (e.g. Rapier) is needed for landing gear and docking contact, or whether simple custom contact checks are enough.
+- **Action expected (Panos):** Decide when the flight core is built.
 
 ## Resolved Decisions
+
+### D-016: Time warp in normal flight
+
+- **Raised:** 2026-10-14
+- **Decided:** 2026-10-14
+- **Owner:** Panos
+- **Outcome:** Two levels. Low factors (2x to 4x) keep full physics and control. High factors (10x to 1000x) are only allowed while coasting with engines off, and the ship follows its exact orbit. The sim drops back to 1x automatically before events such as reaching a station, a planned engine burn, or a close approach to the ground. Hyperdrive moves the ship; time warp speeds up the clock for the whole sim.
+
+### D-012: Renderer
+
+- **Raised:** 2026-10-14
+- **Decided:** 2026-10-14
+- **Owner:** Panos
+- **Outcome:** Three.js WebGPU renderer with automatic WebGL2 fallback. WebGPU is confirmed on the dev machine; the fallback covers Windows and other machines. The collision library question continues in D-017.
+
+### D-013: HTTPS certificate for local network access
+
+- **Raised:** 2026-10-14
+- **Decided:** 2026-10-14
+- **Owner:** Panos
+- **Outcome:** mkcert. A local certificate authority issues the certificate that nginx serves on port 8787, and its root certificate is installed once on each machine that opens the sim, so no browser warnings appear. Needed because browsers only allow WebGPU and gamepads on secure pages.
+
+### D-018: Hyperdrive cost
+
+- **Raised:** 2026-10-14 (split out of D-015, as part of D-016)
+- **Decided:** 2026-10-14
+- **Owner:** Panos
+- **Outcome:** Hyperdrive needs a charge-up of a few seconds before it engages, for immersion. No fuel or energy cost for now.
 
 ### D-005: Universe and scale
 
@@ -211,7 +221,7 @@ Items discussed but not yet decided. Each entry records when it was raised, who 
 - [x] Initialize repository
 - [x] Define purpose (2026-10-14)
 - [x] Choose universe and scale: real solar system (2026-10-14)
-- [ ] Settle remaining decisions (D-012, D-013, D-014, D-016)
+- [ ] Settle remaining decisions (D-017; D-014 deferred)
 - [ ] Choose tech stack
 - [ ] First working version
 
