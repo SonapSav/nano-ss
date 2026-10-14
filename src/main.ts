@@ -10,15 +10,9 @@ import { CameraRig } from './render/cameras';
 import { createRenderer } from './render/createRenderer';
 import { createSpaceScene } from './render/spaceScene';
 import { createControlState, nextAssistMode } from './sim/controls';
-import {
-  computeCommands,
-  createFlightCommands,
-  commandStop,
-  createFlightComputer,
-  setAssistMode,
-} from './sim/flightComputer';
+import { commandStop, createFlightComputer, setAssistMode } from './sim/flightComputer';
 import { copyBodyState, createBodyState } from './sim/rigidBody';
-import { createShip, engineAcceleration, mainDeltaV, resetShip, stepShip } from './sim/ship';
+import { createShip, engineAcceleration, mainDeltaV, resetShip } from './sim/ship';
 import { placeholderSpacecraft } from './sim/ships/placeholderSpacecraft';
 import { FixedStepLoop } from './sim/simLoop';
 import { FrameLimiter } from './ui/frameLimiter';
@@ -28,7 +22,9 @@ import { createHud } from './ui/hud';
 import { createSettingsPanel, loadSettings, saveSettings } from './ui/settings';
 import { createStatsOverlay } from './ui/statsOverlay';
 import { Ephemeris } from './world/ephemeris';
-import { checkHazard, orbitElements, orientationFromForwardUp } from './world/orbit';
+import { orbitElements, orientationFromForwardUp } from './world/orbit';
+import { WARP_DROP_MESSAGES } from './world/timeWarp';
+import { createPhysicsState, stepPhysics } from './game/physicsStep';
 import { SimClock, gmstRadians } from './world/time';
 import { TARGET_NEAR, World } from './world/world';
 
@@ -82,7 +78,6 @@ async function main(): Promise<void> {
   const settings = loadSettings();
   const fc = createFlightComputer('off', settings.fa);
   const controls = createControlState();
-  const commands = createFlightCommands();
   const inputSettings = loadInputSettings();
   const keyboard = new KeyboardInput(window, inputSettings.keyboard);
   const gamepad = new GamepadInput(inputSettings.profiles, (p) => calibrationFor(inputSettings, p));
@@ -92,7 +87,6 @@ async function main(): Promise<void> {
   const previous = createBodyState();
   const previousTarget = new Vector3();
   const orbitalVelocity = new Vector3();
-  const faReference = new Vector3();
   let alert: string | null = null;
 
   /** Ship and target back to the start: 400 km circular orbit in daylight, nose prograde, roof away from Earth. */
@@ -109,32 +103,25 @@ async function main(): Promise<void> {
   };
   placeAtStart();
 
+  const physics = createPhysicsState(ship, world, fc, controls);
+  let notice: { text: string; until: number } | null = null;
+
   const loop = new FixedStepLoop((dt) => {
     copyBodyState(ship.body, previous);
     previousTarget.copy(world.target.position);
     applyKeyboard(keyboard.held, keyboard.bindings, controls, dt);
     addGamepad(controls, pad, arbiter);
 
-    const reference = world.bodyState(world.referenceBody(ship.body.position));
-    orbitalVelocity.subVectors(ship.body.velocity, reference.velocity);
-    const nearTarget = ship.body.position.distanceTo(world.target.position) < TARGET_NEAR;
-    computeCommands(fc, ship, controls, commands, {
-      orbitalVelocity,
-      faReference: nearTarget ? world.targetFrameVelocity(ship.body.position, faReference) : null,
-    });
-
-    // Gravity looks the Moon up at each substep time, so step everything before advancing the clock.
-    stepShip(ship, commands.engines, commands.rcs, dt, { field: world.gravityField, t0: 0 });
-    world.stepTarget(dt);
-    clock.seconds += dt;
-    world.refresh();
-
-    const hazard = checkHazard(ship.body.position, world.moonPosition);
-    if (hazard) {
+    const events = stepPhysics(physics, dt);
+    if (events.warpDrop) {
+      notice = { text: WARP_DROP_MESSAGES[events.warpDrop], until: performance.now() + 4000 };
+    }
+    if (events.hazard) {
       alert =
-        hazard.kind === 'burned-up'
+        events.hazard.kind === 'burned-up'
           ? "BURNED UP in Earth's atmosphere. Press R to reset."
           : 'CRASHED into the Moon. Press R to reset.';
+      physics.warp.limit(1);
       loop.paused = true;
     }
   });
@@ -258,8 +245,17 @@ async function main(): Promise<void> {
         case 'fullscreen':
           void toggleFullscreen();
           break;
+        case 'warpUp':
+          physics.warp.up();
+          break;
+        case 'warpDown':
+          physics.warp.down();
+          break;
         case 'resetShip':
           placeAtStart();
+          physics.warp.limit(1);
+          physics.reference = world.referenceBody(ship.body.position);
+          physics.insideTargetZone = true;
           fc.cruise = null;
           alert = null;
           setPaused(false);
@@ -335,6 +331,8 @@ async function main(): Promise<void> {
         moonDistance: toMoon.length(),
         moonDirection: toMoon.normalize(),
         simDate: clock.date,
+        warp: physics.warp.factor,
+        notice: notice && performance.now() < notice.until ? notice.text : null,
         alert,
         forward: forward.set(0, 0, -1).applyQuaternion(renderOrientation),
         pitchRate: w.x * RAD_TO_DEG,

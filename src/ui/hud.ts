@@ -27,6 +27,9 @@ export interface HudData {
   moonDirection: Vector3;
   moonDistance: number;
   simDate: Date;
+  /** Time warp factor, and a short notice (e.g. why warp stopped), or null. */
+  warp: number;
+  notice: string | null;
   /** Hazard or other message shown in the middle of the screen, or null. */
   alert: string | null;
   /** Ship forward direction in world space (unit). */
@@ -188,7 +191,8 @@ export function createHud(parent: HTMLElement) {
       const o = data.orbit;
       const ts = data.targetSpeed;
       text.textContent = [
-        `TIME     ${data.simDate.toISOString().slice(0, 19).replace('T', ' ')} UTC`,
+        `TIME     ${data.simDate.toISOString().slice(0, 19).replace('T', ' ')} UTC${data.warp > 1 ? `   WARP ${String(data.warp)}×${data.warp > 4 ? ' (coasting)' : ''}` : ''}`,
+        ...(data.notice ? [`         ${data.notice}`] : []),
         `ORBIT    ${o.body}  ALT ${km(o.altitude)}  SPEED ${formatSpeed(speed)}`,
         `         Ap ${km(o.apoapsisAltitude)} in ${duration(o.timeToApoapsis)} | Pe ${km(o.periapsisAltitude)} in ${duration(o.timeToPeriapsis)}`,
         `         period ${duration(o.period)}  inc ${((o.inclination * 180) / Math.PI).toFixed(1)}°  Moon ${formatDistance(data.moonDistance)}`,

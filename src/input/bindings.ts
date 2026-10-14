@@ -24,6 +24,8 @@ export type PressAction =
   | 'assistRetrograde'
   | 'toggleFlightAssist'
   | 'toggleReverse'
+  | 'warpUp'
+  | 'warpDown'
   | 'switchCamera'
   | 'pause'
   | 'toggleStats'
@@ -41,6 +43,8 @@ export const PRESS_ACTIONS: readonly PressAction[] = [
   'assistRetrograde',
   'toggleFlightAssist',
   'toggleReverse',
+  'warpUp',
+  'warpDown',
   'switchCamera',
   'pause',
   'toggleStats',
@@ -59,6 +63,8 @@ export const PRESS_ACTION_LABELS: Record<PressAction, string> = {
   assistRetrograde: 'Assist: retrograde hold',
   toggleFlightAssist: 'Flight assist (FA) on/off',
   toggleReverse: 'Reverse (retro engines) on/off',
+  warpUp: 'Time warp faster',
+  warpDown: 'Time warp slower',
   switchCamera: 'Switch camera',
   pause: 'Pause and settings',
   toggleStats: 'Performance overlay',
@@ -109,6 +115,8 @@ export const DEFAULT_BINDINGS: Readonly<Bindings> = {
     assistRetrograde: ['KeyV'],
     toggleFlightAssist: ['KeyY'],
     toggleReverse: ['KeyB'],
+    warpUp: ['Period'],
+    warpDown: ['Comma'],
     switchCamera: ['KeyC'],
     pause: ['Escape'],
     toggleStats: ['F3'],
