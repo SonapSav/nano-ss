@@ -2,37 +2,44 @@
 
 ## Purpose
 
-nano-ss is a space flight simulator. The user commands a spacecraft that flies between planets, lands at spacedromes on those planets, and docks with other spacecraft.
+nano-ss is a realistic space flight simulator set in the real solar system at real scale. The user commands a spacecraft that flies between planets using a hyperdrive, lands at spacedromes on those planets, and docks with other spacecraft.
 
 ## Goals
 
 - Fly a user-commanded spacecraft between planets.
-- Land at spacedromes on planets.
+- Land at spacedromes on planets (spacedromes only; D-006).
 - Dock with other spacecraft.
 - Control the ship with the keyboard and with a Thrustmaster T.Flight HOTAS X.
 - Run primarily on Linux in a Chromium-based browser. Windows is secondary, best-effort (see D-009).
 - Run well on a PC with integrated graphics, and stay usable on 16 GB RAM (see Hardware Baseline).
-- Ship as a Docker container that serves the app on port 8787.
+- Ship as a Docker container that serves the app on port 8787, reachable from other machines on the local network (D-007).
+- Use up to two monitors: one for the outside view, one for instruments, cameras, and maps (D-011).
 
 ## Non-Goals
 
 - Multiplayer (for now; D-008).
 - Firefox support (D-009).
 - Arcade-style flight (D-004).
+- Landing anywhere on a planet surface outside spacedromes (D-006).
+- More than two monitors (D-011).
 
 ## Tech Stack
 
 Decided:
 
+- **Language:** TypeScript
+- **Build tool:** Vite
 - **3D engine:** Three.js
+- **Web server:** nginx inside the container, serving static files over HTTPS (D-007)
 - **Input:** keyboard and Thrustmaster T.Flight HOTAS X
 - **Packaging:** Docker, serving on port 8787
 - **Platforms:** Linux (primary), Windows (best-effort)
 - **Browser:** Chromium-based (Chrome/Chromium). Firefox is not a target: it was about 2x slower with WebGPU in a previous sim.
 - **Flight model:** realistic Newtonian physics with orbital mechanics (D-004)
 - **Players:** single-player (D-008)
+- **Universe:** real solar system at real scale (D-005), with hyperdrive speed bands for travel (D-015)
 
-Still open: see D-002.
+Still open: renderer and physics library (D-012), HTTPS certificate approach (D-013).
 
 ## Hardware Baseline
 
@@ -48,7 +55,7 @@ Dev machine environment (from `chrome://gpu`, 2026-10-14):
 - Chromium 155 (Debian package)
 - Mesa 25.0.7 graphics driver (RADV Vulkan / radeonsi OpenGL)
 - WebGPU: hardware accelerated through the Vulkan backend (`AMD Radeon Graphics (RADV RENOIR)`), with `shader-f16`, `timestamp-query`, and `subgroups` available
-- Three 1080p monitors
+- Three 1080p monitors (the sim uses at most two; D-011)
 
 Rules:
 
@@ -72,39 +79,90 @@ nano-ss/
 
 Items discussed but not yet decided. Each entry records when it was raised, who owns the decision, and the actions expected from them. When an item is decided, move it to **Resolved Decisions** with the outcome and date.
 
-### D-002: Choose tech stack
+### D-012: Renderer and physics library
 
 - **Raised:** 2026-10-14
 - **Owner:** Panos
 - **Status:** Open
-- **Context:** Three.js, Docker on port 8787, the input devices, Chromium on Linux, a realistic flight model, and single-player were decided on 2026-10-14. Still open: language (TypeScript is the recommendation), build tool (Vite is the recommendation), the web server inside the container (nginx serving static files is enough for single-player), the renderer (Three.js WebGPU renderer with automatic WebGL2 fallback is the recommendation; WebGPU is confirmed working on the dev machine, and the fallback covers Windows and other machines), and whether a physics/collision library is needed (e.g. Rapier). `.gitignore` is still generic and the build/test commands in `CLAUDE.md` are TBD.
-- **Action expected (Panos):** Confirm or change the recommendations above. Then `.gitignore`, `README.md`, and `CLAUDE.md` get tailored to them.
+- **Context:** Recommended renderer: Three.js WebGPU renderer with automatic WebGL2 fallback (WebGPU confirmed on the dev machine; the fallback covers Windows and other machines). Orbital mechanics and flight physics will be custom code either way. Open question: whether a collision library (e.g. Rapier) is needed for landing and docking contact, or whether simple custom contact checks are enough. Can be decided during the flight core phase.
+- **Action expected (Panos):** Confirm the renderer. Decide on the collision library when the flight core is built.
+
+### D-013: HTTPS certificate for local network access
+
+- **Raised:** 2026-10-14
+- **Owner:** Panos
+- **Status:** Open
+- **Context:** Browsers only allow WebGPU and gamepads on secure pages. `http://localhost` is secure, but `http://<server-ip>:8787` opened from another machine is not, so it would lose WebGPU and the HOTAS. nginx must serve HTTPS on 8787. Options:
+  - **mkcert (recommended):** create a small local certificate authority, and install its root certificate once on each machine that opens the sim. No browser warnings.
+  - **Self-signed certificate:** simplest, but every machine shows a security warning, and the certificate exception must be accepted on each one.
+  - **Real certificate** for a domain you own (Let's Encrypt with a DNS challenge): no per-machine setup, but needs a domain and renewal.
+- **Action expected (Panos):** Choose one.
+
+### D-014: Atmospheric flight
+
+- **Raised:** 2026-10-14
+- **Owner:** Panos
+- **Status:** Open
+- **Context:** Some spacedromes may be on planets with atmospheres (e.g. Earth, Mars). With a realistic flight model (D-004), atmosphere means drag, aerodynamic forces, and re-entry heating during landing. Ignoring atmosphere makes landing on those planets unrealistic; airless bodies (e.g. the Moon) avoid the issue entirely. Depends on D-005.
+- **Action expected (Panos):** Choose whether atmospheres affect flight, or whether the first spacedromes are on airless bodies only.
+
+### D-016: Hyperdrive cost and time warp
+
+- **Raised:** 2026-10-14 (split out of D-015)
+- **Owner:** Panos
+- **Status:** Open
+- **Context:** Two hyperdrive questions had no proposal when D-015 was accepted:
+  1. **Cost:** whether hyperdrive uses fuel or energy, needs a spool-up or cooldown time, or is free. A spool-up of a few seconds adds immersion and stops instant escapes; a fuel or energy cost adds route planning.
+  2. **Time warp:** whether normal-space time compression is still needed (e.g. waiting in orbit, timing a rendezvous with a station), and up to what factor.
+- **Action expected (Panos):** Decide both.
+
+## Resolved Decisions
 
 ### D-005: Universe and scale
 
 - **Raised:** 2026-10-14
+- **Decided:** 2026-10-14
 - **Owner:** Panos
-- **Status:** Open
-- **Context:** Real solar system or a fictional system, and real or compressed distances. Real scale needs special rendering techniques (floating origin, logarithmic depth buffer) and a fast-travel mechanic (time compression or a cruise drive), because the trip between planets would otherwise take months.
-- **Action expected (Panos):** Pick real or fictional, and real or compressed scale. If compressed, give a rough target travel time between planets.
+- **Outcome:** Option A: the real solar system at real scale, with real orbital data (NASA/JPL) and real elevation data (NASA/USGS) for spacedrome terrain. Hyperdrive (D-015) handles travel times. Built in stages as recommended: Earth and Moon first, then the inner planets, then the rest. The other options considered were a scaled-down real system (B), a fictional system with real physics (C), and a fictional compact system (D).
+
+### D-015: Hyperdrive design
+
+- **Raised:** 2026-10-14
+- **Decided:** 2026-10-14
+- **Owner:** Panos
+- **Outcome:** Hyperdrive is a separate flight mode on top of the realistic physics: inside a drive bubble, with no momentum build-up and no g-forces. Normal flight (near planets, landing, docking) stays fully Newtonian with orbital mechanics.
+  1. **Speed bands:** 0.1c, 1c, 10c, 100c. The HOTAS throttle selects the band; buttons engage the drive and drop out.
+  2. **Gravity wells:** the drive cannot engage, or is forced to drop out, within a safety distance of each body that scales with its mass. The highest allowed band shrinks closer to a body.
+  3. **Velocity on drop-out:** the drive matches the frame of the nearest body and leaves a small approach speed that the pilot must cancel with thrusters.
+  - Cost and time warp continue in D-016.
+
+### D-002: Tech stack
+
+- **Raised:** 2026-10-14
+- **Decided:** 2026-10-14
+- **Owner:** Panos
+- **Outcome:** TypeScript, Vite, Three.js, and nginx serving the built static files in Docker on port 8787. Renderer and physics library details continue in D-012.
 
 ### D-006: Landing scope
 
 - **Raised:** 2026-10-14
+- **Decided:** 2026-10-14
 - **Owner:** Panos
-- **Status:** Open
-- **Context:** Landing only at spacedromes (fixed sites with local detailed terrain) is much smaller in scope than landing anywhere on a full-detail planet surface. A related choice is whether planets have atmospheres that affect flight (drag, re-entry).
-- **Action expected (Panos):** Choose spacedromes only or landing anywhere, and whether atmospheres affect flight.
+- **Outcome:** Landing only at spacedromes (fixed sites with locally detailed terrain), and docking with other spacecraft. No landing elsewhere on planet surfaces. Atmospheric effects continue in D-014.
 
 ### D-007: How users run it
 
 - **Raised:** 2026-10-14
+- **Decided:** 2026-10-14
 - **Owner:** Panos
-- **Status:** Open
-- **Context:** A Docker container on port 8787 means the simulator runs in a web browser at `http://localhost:8787`. Browsers only expose gamepads such as the HOTAS on secure pages, and `localhost` counts as secure. Opening the app from another machine on the network would need HTTPS. The alternative is a desktop app wrapper (Electron or Tauri), which would not need Docker.
-- **Action expected (Panos):** Confirm browser on the same machine, or say if access from other machines (needs HTTPS) or a desktop app is wanted.
+- **Outcome:** The server (Docker + nginx) runs on one machine, and the sim can be opened in a browser from other machines on the same local network. The server only delivers files: each machine that opens the sim runs it on its own CPU and GPU, with its own keyboard and HOTAS. Requires HTTPS (D-013).
 
-## Resolved Decisions
+### D-011: Monitors
+
+- **Raised:** 2026-10-14
+- **Decided:** 2026-10-14
+- **Owner:** Panos
+- **Outcome:** At most two monitors: one for the outside view, and one for instruments, cameras, and maps. Implementation notes: the instruments screen is a second browser window that receives the simulation state from the main window, which owns the physics and input. Extra camera views cost GPU time on the integrated GPU and must fit the 60 fps budget.
 
 ### D-010: GPU model and performance target
 
@@ -152,7 +210,8 @@ Items discussed but not yet decided. Each entry records when it was raised, who 
 
 - [x] Initialize repository
 - [x] Define purpose (2026-10-14)
-- [ ] Settle remaining scope decisions (D-002, D-005, D-006, D-007)
+- [x] Choose universe and scale: real solar system (2026-10-14)
+- [ ] Settle remaining decisions (D-012, D-013, D-014, D-016)
 - [ ] Choose tech stack
 - [ ] First working version
 
