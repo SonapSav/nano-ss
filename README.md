@@ -2,7 +2,7 @@
 
 A realistic space flight simulator set in the real solar system at real scale, built with Three.js. Fly a spaceplane between planets with a hyperdrive, land at spacedromes, and dock with other spacecraft, using the keyboard or a Thrustmaster T.Flight HOTAS X. See [PROJECT.md](PROJECT.md) for scope, decisions, and roadmap.
 
-**Status:** Stage 1 (flight core): realistic 6-axis flight in empty space with keyboard controls. HOTAS support comes in Stage 2.
+**Status:** Stage 2 (input): realistic 6-axis flight in empty space with keyboard and Thrustmaster T.Flight HOTAS X, fully rebindable.
 
 ## Requirements
 
@@ -82,10 +82,38 @@ Each target is a one-line `docker compose` call in the [Makefile](Makefile).
 | C | Chase / nose camera |
 | Mouse drag, wheel | Orbit and zoom the chase camera |
 | F | Fullscreen (also lets the sim receive Ctrl+W, Ctrl+N, Ctrl+T) |
+| R | Reset ship: refuel and return to the start |
 | F3 | Performance overlay |
-| Esc | Pause and settings (frame rate: 60 fps or display refresh rate) |
+| Esc | Pause and settings (frame rate, motion dust, controls) |
 
 Rotation is realistic: a spin keeps going until thrusters stop it. Assist modes only manage rotation; nothing ever slows the ship down for you.
+
+### Thrustmaster T.Flight HOTAS X
+
+Plug it in, open the sim, and **press any HOTAS button**: Chromium only shows a gamepad to a page after its first input. The HUD's INPUT line then names it. Keyboard and HOTAS work together.
+
+| Control | Action |
+|---|---|
+| Stick left/right, forward/back | Roll, pitch (pull back = nose up) |
+| Stick twist | Yaw |
+| Throttle lever | Main throttle (forward = 100 %) |
+| Throttle rocker | RCS forward/back (right = forward) |
+| Hat | RCS up/down/left/right |
+| Trigger | Assist: kill rotation |
+| Stick button 2 / 4 | Assist: hold attitude / off |
+| Throttle button 5 | Switch camera |
+| ST / SE | Pause and settings / performance overlay |
+
+For the throttle, whichever moved last wins: Z, X, Shift, Ctrl change it, and moving the lever takes over again.
+
+### Rebinding
+
+Esc (or ST) opens the pause panel: click any key, axis, or button binding and press or move the new one. HOTAS axes have invert, dead zone, and response curve controls, and the throttle lever can be calibrated. Changes are saved in the browser; "Reset controls to defaults" restores them. `?gamepad=debug` in the URL shows every raw axis and button, for working out another controller's layout.
+
+### HUD
+
+- **VEL:** velocity along the ship's own axes (forward, right, up): what to watch when docking.
+- **RCS plumes** on the hull show which thrusters fire; **motion dust** (switchable) shows slow drift.
 
 ## Debug options
 
