@@ -2,7 +2,7 @@
 
 A realistic space flight game set in the real solar system at real scale, built with Three.js. Fly a spacecraft between planets and moons with a hyperdrive, land at spaceports on airless worlds, and dock with other spacecraft, using the keyboard or a Thrustmaster T.Flight HOTAS X. See [PROJECT.md](PROJECT.md) for scope, decisions, and roadmap.
 
-**Status:** Stage 3b (orbits and time warp): you start in a real 400 km orbit around Earth, with the real Moon and Sun positions (NASA JPL data) and the real date and time, and can warp time up to 1000×. Real Earth and Moon visuals come next.
+**Status:** Stage 3 (Earth and Moon): you start in a real 400 km orbit around Earth, with the real Moon, Sun, and stars where they are right now (NASA JPL data and the Yale Bright Star Catalogue), NASA imagery of Earth and the Moon, time warp up to 1000×, and an orbit map.
 
 ## Requirements
 
@@ -83,6 +83,7 @@ Each target is a one-line `docker compose` call in the [Makefile](Makefile).
 | T | Rotation assist: off, kill rotation, hold attitude |
 | V / G | Retrograde hold (face against motion) / prograde hold (face along motion) |
 | C | Chase / nose camera |
+| M | Map view: orbit line, apoapsis (Ap) and periapsis (Pe), Earth and the Moon (drag to orbit, wheel to zoom) |
 | Mouse drag, wheel | Orbit and zoom the chase camera |
 | F | Fullscreen (also lets the sim receive Ctrl+W, Ctrl+N, Ctrl+T) |
 | . / , | Time warp faster / slower (1×, 2×, 4× flyable; 10×, 100×, 1000× coasting only) |

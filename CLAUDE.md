@@ -50,7 +50,7 @@ nano-ss is a realistic space flight game (TypeScript, Vite, Three.js WebGPU, ngi
 | `make dev` | Dev server on `https://<host>:5173` |
 | `make check` | Lint, format check, type check, unit tests (same as CI) |
 | `make lint` / `make typecheck` / `make test` / `make format` | Single checks / formatting |
-| `make scenery` | Download and rebuild game data (JPL ephemerides) into `public/data/` |
+| `make scenery` | Download and rebuild game data (JPL ephemerides, stars, KTX2 textures) into `public/`; slow (the Moon datasets take about 30 min) |
 | `make build` | Build the production image |
 | `make up` / `make down` / `make logs` | Production server on `https://<host>:8787` |
 | `make shell` | Shell in the dev container |

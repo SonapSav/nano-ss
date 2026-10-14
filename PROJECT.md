@@ -91,7 +91,8 @@ nano-ss/
 ├── .env.example      # CERT_HOSTS; copied to the git-ignored .env
 ├── docker/           # Dockerfiles and nginx config
 ├── scripts/scenery/  # Downloads and builds game data (make scenery)
-├── public/data/      # Built game data (JPL ephemeris tables), committed
+├── public/data/      # Built game data (JPL ephemerides, star catalogue), committed
+├── public/textures/  # Built KTX2 textures (Earth, Moon), committed
 ├── .github/workflows # CI: make check + production image build
 ├── index.html
 ├── src/
@@ -113,6 +114,13 @@ Items discussed but not yet decided. Each entry records when it was raised, who 
 _None currently._
 
 ## Resolved Decisions
+
+### D-049: Stage 3c scenery pipeline
+
+- **Raised:** 2026-10-14
+- **Decided:** 2026-10-14
+- **Owner:** Panos
+- **Outcome:** `make scenery` builds all game data in containers: JPL ephemerides, the Yale Bright Star Catalogue (real sky, ICRF), and Earth and Moon textures encoded as GPU-compressed **KTX2** (KTX-Software 4.4.2 in the dev image, checksum-pinned) with `sharp` for resizing; jobs run in parallel following the worker rule (threads and free memory, `NANO_SS_WORKERS` override). Outputs are committed (about 8 MB of textures, 1.2 MB of data); sources stay in `data-cache/`. Earth: NASA Blue Marble (day), Black Marble (night lights), Blue Marble clouds. **Moon: the planned NASA SVS CGI Moon Kit was unreachable** (server down on 2026-10-14), and the small LOLA albedo map turned out to be stripy laser-track data, so the Moon uses the **LROC WAC 100 m mosaic** and the **LOLA 118 m elevation model** from the USGS Astrogeology archive: 6 to 9 GB files stored one row per block, read as reduced copies (8192 × 4096 and 4096 × 2048) by a pinned GDAL container fetching only the rows it needs. Textures are flipped once at build time because KTX2 textures are not flipped on upload. Credits in `ASSETS.md`.
 
 ### D-048: Time warp rules
 
@@ -469,7 +477,7 @@ Planning (done 2026-10-14): repository, purpose, scope, tech stack, assets, and 
 - [x] **Stage 1: Flight core.** Realistic 6-axis flight in empty space on a fixed physics time step, chase and nose cameras, basic heads-up display, keyboard controls, frame rate setting (60 fps default or display rate; D-035). (2026-10-14; D-036 to D-038)
 - [x] **Stage 2: Input.** HOTAS X support tuned for Linux Chromium, rebindable controls, calibration and dead zones. (2026-10-14; D-039, D-040)
 - [x] **Stage 2b: Game assists.** Retro engines (D-042); retrograde/prograde hold, drift-cancelling flight assist, edge arrows, time-to-stop hint (D-041); spacecraft-shaped greybox (D-043). (2026-10-14)
-- [ ] **Stage 3: Earth and Moon.** Real orbits from NASA/JPL data, handling of huge distances, gravity, two-level time warp. Earth for orbits and views only (no landing, D-044). 3a orbits and 3b time warp done 2026-10-14 (D-045, D-047, D-048); 3c visuals (textures, real stars, orbit line, map view) to do.
+- [x] **Stage 3: Earth and Moon.** Real orbits from NASA/JPL data, handling of huge distances, gravity, two-level time warp. Earth for orbits and views only (no landing, D-044). 3a orbits, 3b time warp, and 3c visuals (NASA textures, real stars, Sun, orbit line, map view) done 2026-10-14 (D-045, D-047 to D-049).
 - [ ] **Stage 4: Hyperdrive.** Speed bands 0.1c to 100c, charge-up, gravity-well limits, arrival speed matching.
 - [ ] **Stage 5: Moon spaceports.** Landing pads on real lunar terrain, vertical landing on thrusters, contact checks, refuelling.
 - [ ] **Stage 6: Orbital stations.** Modular stations, docking with the capture check.
