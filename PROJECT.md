@@ -97,7 +97,8 @@ nano-ss/
 ├── src/
 │   ├── main.ts       # Startup: renderer, scene, loop, overlay
 │   ├── platform/     # GPU report, worker budget (with tests)
-│   ├── world/        # Clock, ephemeris, bodies, gravity, orbits, targets
+│   ├── world/        # Clock, ephemeris, bodies, gravity, orbits, targets, time warp
+│   ├── game/         # Physics step: commands, substeps, hazards, warp safety
 │   ├── sim/          # Ship physics, flight computer, fixed-step loop
 │   ├── input/        # Keyboard, HOTAS, bindings, storage
 │   ├── render/       # Renderer setup, placeholder scene
@@ -112,6 +113,13 @@ Items discussed but not yet decided. Each entry records when it was raised, who 
 _None currently._
 
 ## Resolved Decisions
+
+### D-048: Time warp rules
+
+- **Raised:** 2026-10-14
+- **Decided:** 2026-10-14
+- **Owner:** Panos
+- **Outcome:** Built in Stage 3b following D-016: levels 1×, 2×, 4× (full control) and 10×, 100×, 1000× (coasting: engines, RCS, and FA ignored). Keys `.` / `,`, HOTAS R2 (8) / L2 (9). Each physics step covers `warp × 1/120` s of sim time in substeps of at most 1/80 of the free-fall time scale √(d³/GM) for Earth and the Moon (about 11 s in low Earth orbit), with hazards checked in every substep. Automatic drops: to 4× on any control input while coasting (including a throttle lever not fully back); to 1× on entering 10 km of the target, before a pass below the warp safety altitude (Earth 150 km, Moon 20 km) within 3 sim seconds per warp factor, or on changing sphere of influence. The HUD shows the warp level and why it dropped. Verified: one orbit at 1000× stays on the same orbit.
 
 ### D-047: Stage 3 world model
 
@@ -172,7 +180,7 @@ _None currently._
 - **Raised:** 2026-10-14
 - **Decided:** 2026-10-14
 - **Owner:** Panos
-- **Outcome:** Layout from the raw viewer checkpoint (`?gamepad=debug`) on Linux Chromium. Axes: 0 stick X = roll, 1 stick Y = pitch (pull back = nose up), 2 throttle lever = main throttle (absolute, forward = 100 %), 3 twist = yaw, 4 rocker = RCS forward/back (analog, right = forward), 5/6 hat = RCS left/right and up/down (forward = up). Buttons, chosen by urgency and hand position: 0 trigger = assist kill rotation (the "panic button" for a tumble), 1 = hold attitude, 3 = assist off, 2 (R3) = retrograde hold (added in Stage 2b, D-041), 4 = switch camera, 5 (throttle button 6) = reverse toggle (added in Stage 2b, D-042), 11 ST = pause and settings, 10 SE = performance overlay; 6/7 reserved for hyperdrive (Stage 4), 8/9 for time warp (Stage 3). Direct buttons per assist mode instead of a cycle button, so the emergency action is always one press. Dead zones 5 % stick, 10 % twist and rocker; mild response curves. Keyboard and HOTAS work together (axes summed); for the throttle, whichever moved last wins. Everything is rebindable in the pause panel, with per-axis invert, dead zone, curve, and throttle calibration, saved in the browser.
+- **Outcome:** Layout from the raw viewer checkpoint (`?gamepad=debug`) on Linux Chromium. Axes: 0 stick X = roll, 1 stick Y = pitch (pull back = nose up), 2 throttle lever = main throttle (absolute, forward = 100 %), 3 twist = yaw, 4 rocker = RCS forward/back (analog, right = forward), 5/6 hat = RCS left/right and up/down (forward = up). Buttons, chosen by urgency and hand position (8/9 R2/L2 = time warp faster/slower, added in Stage 3b): 0 trigger = assist kill rotation (the "panic button" for a tumble), 1 = hold attitude, 3 = assist off, 2 (R3) = retrograde hold (added in Stage 2b, D-041), 4 = switch camera, 5 (throttle button 6) = reverse toggle (added in Stage 2b, D-042), 11 ST = pause and settings, 10 SE = performance overlay; 6/7 reserved for hyperdrive (Stage 4), 8/9 for time warp (Stage 3). Direct buttons per assist mode instead of a cycle button, so the emergency action is always one press. Dead zones 5 % stick, 10 % twist and rocker; mild response curves. Keyboard and HOTAS work together (axes summed); for the throttle, whichever moved last wins. Everything is rebindable in the pause panel, with per-axis invert, dead zone, curve, and throttle calibration, saved in the browser.
 
 ### D-039: RCS propellant budget
 
@@ -461,7 +469,7 @@ Planning (done 2026-10-14): repository, purpose, scope, tech stack, assets, and 
 - [x] **Stage 1: Flight core.** Realistic 6-axis flight in empty space on a fixed physics time step, chase and nose cameras, basic heads-up display, keyboard controls, frame rate setting (60 fps default or display rate; D-035). (2026-10-14; D-036 to D-038)
 - [x] **Stage 2: Input.** HOTAS X support tuned for Linux Chromium, rebindable controls, calibration and dead zones. (2026-10-14; D-039, D-040)
 - [x] **Stage 2b: Game assists.** Retro engines (D-042); retrograde/prograde hold, drift-cancelling flight assist, edge arrows, time-to-stop hint (D-041); spacecraft-shaped greybox (D-043). (2026-10-14)
-- [ ] **Stage 3: Earth and Moon.** Real orbits from NASA/JPL data, handling of huge distances, gravity, two-level time warp. Earth for orbits and views only (no landing, D-044). 3a orbits done 2026-10-14 (D-045, D-047); 3b time warp and 3c visuals (textures, real stars, orbit line, map view) to do.
+- [ ] **Stage 3: Earth and Moon.** Real orbits from NASA/JPL data, handling of huge distances, gravity, two-level time warp. Earth for orbits and views only (no landing, D-044). 3a orbits and 3b time warp done 2026-10-14 (D-045, D-047, D-048); 3c visuals (textures, real stars, orbit line, map view) to do.
 - [ ] **Stage 4: Hyperdrive.** Speed bands 0.1c to 100c, charge-up, gravity-well limits, arrival speed matching.
 - [ ] **Stage 5: Moon spaceports.** Landing pads on real lunar terrain, vertical landing on thrusters, contact checks, refuelling.
 - [ ] **Stage 6: Orbital stations.** Modular stations, docking with the capture check.

@@ -2,7 +2,7 @@
 
 A realistic space flight game set in the real solar system at real scale, built with Three.js. Fly a spacecraft between planets and moons with a hyperdrive, land at spaceports on airless worlds, and dock with other spacecraft, using the keyboard or a Thrustmaster T.Flight HOTAS X. See [PROJECT.md](PROJECT.md) for scope, decisions, and roadmap.
 
-**Status:** Stage 3a (orbits): you start in a real 400 km orbit around Earth, with the real Moon and Sun positions (NASA JPL data) and the real date and time. Time warp and real Earth and Moon visuals come next.
+**Status:** Stage 3b (orbits and time warp): you start in a real 400 km orbit around Earth, with the real Moon and Sun positions (NASA JPL data) and the real date and time, and can warp time up to 1000×. Real Earth and Moon visuals come next.
 
 ## Requirements
 
@@ -85,6 +85,7 @@ Each target is a one-line `docker compose` call in the [Makefile](Makefile).
 | C | Chase / nose camera |
 | Mouse drag, wheel | Orbit and zoom the chase camera |
 | F | Fullscreen (also lets the sim receive Ctrl+W, Ctrl+N, Ctrl+T) |
+| . / , | Time warp faster / slower (1×, 2×, 4× flyable; 10×, 100×, 1000× coasting only) |
 | R | Reset ship: refuel and return to the start |
 | F3 | Performance overlay |
 | Esc | Pause and settings (frame rate, motion dust, controls) |
@@ -94,6 +95,7 @@ Physics is Newtonian: a spin or a speed keeps going until thrusters stop it. **F
 ### Flying in orbit
 
 - **Speeding up raises the other side of your orbit; slowing down lowers it.** A prograde burn (G, then throttle) raises the apoapsis half an orbit later; a retrograde burn (V) lowers the periapsis. The ORBIT lines show both and when you reach them.
+- **Time warp** (. and , or R2/L2): up to 4× you keep full control; at 10× to 1000× the ship coasts, so one orbit takes about 5 s at 1000×. Warp drops by itself when you use the controls (to 4×), get within 10 km of the target, head for a low pass, or change sphere of influence (to 1×).
 - **Below 100 km over Earth you burn up** (there is no atmospheric flight); R resets to the start orbit.
 - **Reaching the practice target (◇, 2 km ahead at the start):** point at it, tap the rocker (or H) until closing speed is about 2 m/s, and let go: flight assist **cruises** at that speed and cancels drift. Within about 200 m slow down with the rocker back (or N); at almost 0, or with **X**, FA stops you. Near the target, VEL and STOP are measured in the target's orbiting frame.
 
@@ -113,6 +115,7 @@ Plug it in, open the sim, and **press any HOTAS button**: Chromium only shows a 
 | Stick button 3 (R3) | Retrograde hold: turn to face against the motion |
 | Throttle button 5 | Switch camera |
 | Throttle button 6 | Reverse (retro engines) on/off |
+| R2 / L2 | Time warp faster / slower |
 | ST / SE | Pause and settings / performance overlay |
 
 For the throttle, whichever moved last wins: Z, X, Shift, Ctrl change it, and moving the lever takes over again.
