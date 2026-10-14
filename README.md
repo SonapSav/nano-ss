@@ -12,3 +12,7 @@ cd nano-ss
 ## Author
 
 Panos Vasilopoulos — [sonap.sav@gmail.com](mailto:sonap.sav@gmail.com)
+
+## License
+
+[MIT](LICENSE) © 2026 Panos Vasilopoulos. Third-party assets keep their own licenses, listed in `ASSETS.md`.

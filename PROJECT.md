@@ -77,6 +77,7 @@ nano-ss/
 ├── README.md     # Quick intro and getting started
 ├── PROJECT.md    # This file: purpose, scope, and plan
 ├── CLAUDE.md     # Guidance for Claude Code in this repo
+├── LICENSE       # MIT
 └── .gitignore
 ```
 
@@ -84,23 +85,38 @@ nano-ss/
 
 Items discussed but not yet decided. Each entry records when it was raised, who owns the decision, and the actions expected from them. When an item is decided, move it to **Resolved Decisions** with the outcome and date.
 
-### D-021: Cockpit
+### D-025: Google Drive storage and backup tool
 
 - **Raised:** 2026-10-14
 - **Owner:** Panos
 - **Status:** Open
-- **Context:** (a) Full 3D cockpit interior with instruments, seen from the pilot's seat: the most immersive, but the most detailed model to build, and it competes with the second-monitor instruments (D-011). (b) Outside camera plus a heads-up display, with the instruments on the second monitor. (c) A simpler cockpit frame (canopy, struts, a few key displays) plus the second monitor for detailed instruments. Recommendation: (c), with (b) available as a camera option.
-- **Action expected (Panos):** Choose (a), (b), or (c).
+- **Context:** `.blend` sources are backed up to Google Drive (`sonap.sav@gmail.com`, D-022). Claude's Drive tools cannot read the storage quota, so free space is unverified. The free Google plan is 15 GB shared with Gmail and Photos; `.blend` sources for the project could reach several GB over time, especially with saved versions. Google has no official Drive app for Linux. Options for the backup: rclone (free, open source; work locally in a folder such as `~/Development/nano-ss-assets` and sync it to Drive, keeping old versions in a separate Drive folder), KDE's built-in Google Drive integration (`kio-gdrive`, mounts Drive as a network folder; too slow to work on `.blend` files directly, fine for manual copies), or Insync (paid). Recommendation: rclone.
+- **Action expected (Panos):** Check free space at https://drive.google.com/settings/storage and report it, and approve rclone (or choose another tool).
+
+## Resolved Decisions
+
+### D-021: Cockpit
+
+- **Raised:** 2026-10-14
+- **Decided:** 2026-10-14
+- **Owner:** Panos
+- **Outcome:** Staged path. (1) No cockpit while the engine is built: outside or nose camera plus a heads-up display, instruments on the second monitor. (2) A cockpit frame (canopy, window struts, glare shield, a few key displays) once the spaceplane design is settled. (3) Designed so it can grow toward a full 3D interior later. The cockpit is rendered as its own layer so it stays sharp next to very distant objects.
 
 ### D-022: Asset licensing and storage
 
 - **Raised:** 2026-10-14
+- **Decided:** 2026-10-14
 - **Owner:** Panos
-- **Status:** Open
-- **Context:** The repo is public, so every model, texture, and data file committed to it is redistributed. Proposal: only commit assets that are our own, public domain, CC0, or CC-BY (with credit); record every third-party asset in an `ASSETS.md` file (source, author, license, link). NASA imagery is generally free to use, but NASA logos and insignia are restricted and nothing may imply NASA endorsement. Large binary files: either Git LFS (GitHub's free quota is small) or keep source assets outside git and download them during the build. Bought assets with restrictive licenses must stay out of the repo.
-- **Action expected (Panos):** Approve the licensing rule, and choose Git LFS or download-at-build for large assets.
+- **Outcome:**
+  - **Licensing:** commit only assets that are our own, public domain, CC0, or CC-BY (credited); record every third-party asset in `ASSETS.md` (source, author, license, link). No NC licenses; SA only if accepted knowingly. NASA imagery is allowed, but no NASA logos or insignia and nothing implying NASA endorsement. Assets with restrictive licenses stay out of the repo.
+  - **Storage (hybrid):** `.blend` sources live outside the repo and are backed up to Google Drive (`sonap.sav@gmail.com`); `.gitignore` excludes `*.blend` files. Exported, compressed game models (GLB with compressed textures) are committed so the Docker build is self-contained. Large NASA/USGS data is downloaded and processed by a script during the scenery build, cached locally in `data-cache/` (git-ignored). Storage check and backup tool continue in D-025.
 
-## Resolved Decisions
+### D-024: Project license
+
+- **Raised:** 2026-10-14
+- **Decided:** 2026-10-14
+- **Owner:** Panos
+- **Outcome:** MIT, copyright 2026 Panos Vasilopoulos, in `LICENSE`. It covers the code and Panos's own committed assets (such as exported models). Third-party assets keep their own licenses, listed in `ASSETS.md`.
 
 ### D-023: Blender setup and MCP connection
 

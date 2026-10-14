@@ -30,3 +30,10 @@ dist/
 build/
 out/
 coverage/
+
+# Blender sources (kept outside the repo, backed up to Google Drive; D-022)
+*.blend
+*.blend[0-9]*
+
+# Downloaded and processed real-world data (NASA/USGS; D-022)
+data-cache/
