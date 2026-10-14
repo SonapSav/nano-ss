@@ -99,7 +99,7 @@ nano-ss/
 │   ├── main.ts       # Startup: renderer, scene, loop, overlay
 │   ├── platform/     # GPU report, worker budget (with tests)
 │   ├── world/        # Clock, ephemeris, bodies, gravity, orbits, targets, time warp
-│   ├── game/         # Physics step: commands, substeps, hazards, warp safety
+│   ├── game/         # Physics step, landing state and services, landing guidance
 │   ├── sim/          # Ship physics, flight computer, fixed-step loop
 │   ├── input/        # Keyboard, HOTAS, bindings, storage
 │   ├── render/       # Renderer setup, placeholder scene
@@ -114,6 +114,27 @@ Items discussed but not yet decided. Each entry records when it was raised, who 
 _None currently._
 
 ## Resolved Decisions
+
+### D-052: Landing rules and guidance
+
+- **Raised:** 2026-10-14
+- **Decided:** 2026-10-14
+- **Owner:** Panos
+- **Outcome:** Chosen when planning Stage 5: **realistic touchdown limits**, the ship **can tip over**, **refuel and repair on the pad** (R stays as an emergency restart), and **the pilot flies the descent with HUD guidance** (no autopilot). Built in 5b and 5c:
+  - **Contacts (D-017):** four spring-damper footpads (2·10⁵ N/m, damping ratio 0.8, friction 0.6) against the terrain height and slope, relative to the turning ground, so the ship settles, slides, or tips physically; hull points at the nose and both hull ends detect strikes. Spaceport terrain uses contacts; touching the Moon elsewhere is still a crash (D-006).
+  - **Touchdown verdict** at first contact (bounces within 1 s count as the same landing): **safe** at ≤ 2 m/s down, ≤ 1 m/s sideways and ≤ 10° from vertical; **hard** up to 5 m/s, 2.5 m/s and 20°, which damages the legs (a second hard landing collapses them); beyond that, a hull strike, or more than 60° of tilt in contact is a **crash**, with the reason in the alert.
+  - **Landed:** all four feet down and nearly still for 2 s with the engines off; the ship is then attached to the Moon-fixed frame (stable at any time warp, warp allowed). Throttle or translation lifts off. Within 25 m of a pad centre, both tanks refill and the legs are repaired over 10 s.
+  - **Guidance:** Tab cycles the navigation target (practice target, Tranquility Base, Shackleton Rim); the pad has a ◎ marker; the hyperdrive's lunar arrival orbit is placed in the plane through the targeted pad, aimed where the pad will be as the Moon turns, so the ground track passes over it. In the Moon's sphere of influence the HUD shows surface distance and bearing, the pad's angle ahead in the orbit and its distance off the track (above 5 km), radar height of the feet, descent and ground speed, and the ballistic **impact point** ✕ with its miss from the pad (long/short, left/right).
+  - **FA over the ground:** below 20 km over the Moon FA's reference is the ground; with the nose within 45° of vertical it adds the thrust that cancels lunar gravity, so a throttle cut hovers and cruise holds a climb or descent rate. After a touchdown FA leaves translation alone until the throttle opens, so the ship settles and a bounce is not held as a climb.
+  - **Lighting:** the Moon blocks sunlight and earthshine (night on the Moon, the far side); earthshine scaled by Earth's lit fraction; Sun shadows within about 1.5 km of the ship below 50 km (setting); landing lights (P) that dim near the ground so the pool never glares.
+  - Verified in tests (safe, hard, and crash landings; tipping on 25°; services only on the pad; a day landed at 1000×; FA hover and a 2 m/s FA descent to a safe landing; the arrival ground track passing 1.7 km from a targeted pad against 606 km without) and in headless screenshots at both sites.
+
+### D-051: Spaceport sites and terrain
+
+- **Raised:** 2026-10-14
+- **Decided:** 2026-10-14
+- **Owner:** Panos
+- **Outcome:** Two spaceports: **Tranquility Base** (Apollo 11, 0.674°N 23.473°E: flat mare, Earth high in the sky) and the **Shackleton crater rim** at the south pole (crater centre 89.67°S 129.78°E per the IAU gazetteer; Artemis region: low Sun, long shadows, Earth near the horizon). The Shackleton pad is picked from the elevation data on the rim (6.4 km east and 8.2 km south of the projection centre, 1,737 m above the reference sphere, 1.8° slope). Terrain pipeline (part of `make scenery`): a pinned GDAL container cuts **40 km windows at 40 m** in a gnomonic projection centred on each site from the LOLA 118 m elevation model and the LROC WAC 100 m mosaic over `/vsicurl/`, plus a **400 km ring at 2 km** from the reduced global model, so real terrain reaches past the horizon; heights stored as Int16 in 0.5 m units (about 2 MB per site), colour as KTX2. In the game the ground height is the window (bilinear, plus deterministic metre-scale detail), blended into the ring and the ring into the reference sphere, with a flat 100 m apron under the pad and buildings; physics and rendering share it through the Moon-fixed frame. Rendering: three nested grids (ring at 2 km, window at 160 m, about 2 km around the pad at 8 m) with skirts, the global Moon map beyond the window, and the Moon sphere cut away inside each ring. Greybox spaceports: pad with painted ring and edge lights, habitat modules, fuel tanks, a mast with a beacon, a floodlight. Credits in `ASSETS.md`.
 
 ### D-050: Hyperdrive rules
 
@@ -486,7 +507,7 @@ Planning (done 2026-10-14): repository, purpose, scope, tech stack, assets, and 
 - [x] **Stage 2b: Game assists.** Retro engines (D-042); retrograde/prograde hold, drift-cancelling flight assist, edge arrows, time-to-stop hint (D-041); spacecraft-shaped greybox (D-043). (2026-10-14)
 - [x] **Stage 3: Earth and Moon.** Real orbits from NASA/JPL data, handling of huge distances, gravity, two-level time warp. Earth for orbits and views only (no landing, D-044). 3a orbits, 3b time warp, and 3c visuals (NASA textures, real stars, Sun, orbit line, map view) done 2026-10-14 (D-045, D-047 to D-049).
 - [x] **Stage 4: Hyperdrive.** Speed bands 0.1c to 100c, charge-up, gravity-well limits, arrival speed matching. (2026-10-14; D-050)
-- [ ] **Stage 5: Moon spaceports.** Landing pads on real lunar terrain, vertical landing on thrusters, contact checks, refuelling.
+- [x] **Stage 5: Moon spaceports.** Landing pads on real lunar terrain, vertical landing on thrusters, contact checks, refuelling. 5a terrain, 5b landing, 5c guidance. (2026-10-14; D-051, D-052)
 - [ ] **Stage 6: Orbital stations.** Modular stations, docking with the capture check.
 - [ ] **Stage 7: Second monitor.** Window for instruments, cameras, and maps.
 - [ ] **Stage 8: Exploration across the solar system.** More airless destinations (other moons, Mercury, asteroids) with spaceports; planets with atmospheres are visited from orbit only.

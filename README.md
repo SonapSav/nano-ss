@@ -2,7 +2,7 @@
 
 A realistic space flight game set in the real solar system at real scale, built with Three.js. Fly a spacecraft between planets and moons with a hyperdrive, land at spaceports on airless worlds, and dock with other spacecraft, using the keyboard or a Thrustmaster T.Flight HOTAS X. See [PROJECT.md](PROJECT.md) for scope, decisions, and roadmap.
 
-**Status:** Stage 3 (Earth and Moon): you start in a real 400 km orbit around Earth, with the real Moon, Sun, and stars where they are right now (NASA JPL data and the Yale Bright Star Catalogue), NASA imagery of Earth and the Moon, time warp up to 1000×, an orbit map, and a hyperdrive to the Moon.
+**Status:** Stage 5 (Moon spaceports): you start in a real 400 km orbit around Earth, with the real Moon, Sun, and stars where they are right now (NASA JPL data and the Yale Bright Star Catalogue), NASA imagery of Earth and the Moon, time warp up to 1000×, an orbit map, and a hyperdrive to the Moon, where you can land at two spaceports on real lunar terrain (Tranquility Base and the Shackleton crater rim) and refuel.
 
 ## Requirements
 
@@ -87,6 +87,8 @@ Each target is a one-line `docker compose` call in the [Makefile](Makefile).
 | Mouse drag, wheel | Orbit and zoom the chase camera |
 | F | Fullscreen (also lets the sim receive Ctrl+W, Ctrl+N, Ctrl+T) |
 | U / O | Hyperdrive: charge and engage / drop out (throttle picks the band) |
+| Tab | Next navigation target: practice target, Tranquility Base, Shackleton Rim |
+| P | Landing lights on/off |
 | . / , | Time warp faster / slower (1×, 2×, 4× flyable; 10×, 100×, 1000× coasting only) |
 | R | Reset ship: refuel and return to the start |
 | F3 | Performance overlay |
@@ -106,6 +108,16 @@ Physics is Newtonian: a spin or a speed keeps going until thrusters stop it. **F
 - **Engage above 1,000 km over Earth or 100 km over the Moon**; below that the HYPER line says BLOCKED. From the start orbit, raise your orbit with a prograde burn first.
 - **Point at the destination** (☾ for the Moon), set the band with the throttle (quarters: 0.1c, 1c, 10c, 100c), and press **U**: 5 s of charging, then the jump. You can steer with the stick.
 - **Arrival is automatic**: the drive slows near the destination and drops you into a circular orbit at 100 km over the Moon (1,000 km over Earth). **O** drops out anywhere, into a circular orbit around the nearest body.
+
+### Landing on the Moon
+
+1. **Target a spaceport** with Tab (◎ marks the pad), then hyperdrive to the Moon: you arrive in a 100 km circular orbit whose ground track passes over the pad.
+2. **Time the deorbit burn**: the TARGET line says how far ahead in the orbit the pad is. Turn retrograde (V) and burn until the impact point **✕** (IMPACT line: how far long or short, left or right of the pad) sits on or a little short of the pad.
+3. **Brake** with the main engine as the ground comes up, then turn **tail down** (nose up) for the last few kilometres. Below 20 km, **FA works over the ground**: with the nose up it carries the ship's weight, so **X hovers**, and the rocker (or H / N) sets a climb or descent rate that FA holds when you let go: about 2 m/s down for touchdown. GROUND shows the radar height of the feet and your descent and sideways speed; VEL is over the ground.
+4. **Touch down** at 2 m/s or less, under 1 m/s sideways, and within 10° of vertical for a safe landing. Up to 5 m/s damages the legs (a second hard landing collapses them); faster, a hull strike, or tipping over on a slope is a crash. After 2 s still on all four legs you are **landed** and time warp is free.
+5. **Within 25 m of the pad centre** the spaceport refuels both tanks and repairs the legs (10 s). Throttle or translation lifts off.
+
+At night (Tranquility Base for half of each month) only earthshine lights the ground: switch on the landing lights (P). At the Shackleton rim the Sun skims the horizon and Earth sits low in the sky.
 
 ### Thrustmaster T.Flight HOTAS X
 
@@ -137,12 +149,14 @@ Esc (or ST) opens the pause panel: click any key, axis, or button binding and pr
 
 - **VEL:** velocity along the ship's own axes (forward, right, up): what to watch when docking.
 - **STOP:** burn time to stop with the main or retro engines, and the Δv needed; warns when the remaining Δv is not enough.
-- **Markers:** + nose, ⊕ direction of motion, ⊗ opposite (amber), ◇ target (blue); when off screen, an arrow at the screen edge points to them.
+- **Markers:** + nose, ⊕ direction of motion, ⊗ opposite (amber), ◇ practice target (blue), ◎ spaceport pad (yellow), ✕ predicted impact point (red); when off screen, an arrow at the screen edge points to them.
+- **LANDING:** contact (feet down), the last touchdown's speed and verdict, landed and refuelling status, leg damage.
 - **RCS plumes** on the hull show which thrusters fire; **motion dust** (switchable) shows slow drift.
 
 ## Debug options
 
 - `?workers=N` in the URL overrides the worker count, for testing and tuning.
+- `?start=tranquility` or `?start=shackleton` starts over that pad, tail down and still over the ground, 2 km up or at `&alt=` metres (e.g. `&alt=50`).
 - The browser console logs the GPU backend, adapter, and worker budget at startup.
 
 ## Author
