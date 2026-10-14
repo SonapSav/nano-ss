@@ -115,6 +115,13 @@ _None currently._
 
 ## Resolved Decisions
 
+### D-050: Hyperdrive rules
+
+- **Raised:** 2026-10-14
+- **Decided:** 2026-10-14
+- **Owner:** Panos
+- **Outcome:** Built in Stage 4 on D-015 and D-018. Chosen when planning: **engage only above a safety altitude** (1,000 km over Earth, 100 km over the Moon; from the 400 km start orbit one climb burn of about 300 m/s), **arrival in a circular orbit** around the nearest body at that altitude (refining D-015's "match the nearest body's frame"), and **steering with the stick** while active. Details: bands 0.1c, 1c, 10c, 100c from the throttle in quarters; 5 s charge, aborted by drop-out or entering a blocked zone; a governor limits speed while closing on a body to (altitude − drop-out altitude) / (2 s · cos θ), with a 2 km/s floor, so approaches slow smoothly, end at the drop-out altitude, and cannot hit anything, while departures are unrestricted; drop-out manual (O / throttle button 8) or automatic at a body's drop-out altitude; time warp locked at 1× while active; no gravity, engines, or translation in the drive bubble, rotation and RCS fuel as normal. Keys U / O, HOTAS throttle buttons 7 / 8 (the pair reserved in D-040). Verified: Earth to the Moon at 0.1c and 100c ends in a circular lunar orbit at about 100 km in under a minute.
+
 ### D-049: Stage 3c scenery pipeline
 
 - **Raised:** 2026-10-14
@@ -188,7 +195,7 @@ _None currently._
 - **Raised:** 2026-10-14
 - **Decided:** 2026-10-14
 - **Owner:** Panos
-- **Outcome:** Layout from the raw viewer checkpoint (`?gamepad=debug`) on Linux Chromium. Axes: 0 stick X = roll, 1 stick Y = pitch (pull back = nose up), 2 throttle lever = main throttle (absolute, forward = 100 %), 3 twist = yaw, 4 rocker = RCS forward/back (analog, right = forward), 5/6 hat = RCS left/right and up/down (forward = up). Buttons, chosen by urgency and hand position (8/9 R2/L2 = time warp faster/slower, added in Stage 3b): 0 trigger = assist kill rotation (the "panic button" for a tumble), 1 = hold attitude, 3 = assist off, 2 (R3) = retrograde hold (added in Stage 2b, D-041), 4 = switch camera, 5 (throttle button 6) = reverse toggle (added in Stage 2b, D-042), 11 ST = pause and settings, 10 SE = performance overlay; 6/7 reserved for hyperdrive (Stage 4), 8/9 for time warp (Stage 3). Direct buttons per assist mode instead of a cycle button, so the emergency action is always one press. Dead zones 5 % stick, 10 % twist and rocker; mild response curves. Keyboard and HOTAS work together (axes summed); for the throttle, whichever moved last wins. Everything is rebindable in the pause panel, with per-axis invert, dead zone, curve, and throttle calibration, saved in the browser.
+- **Outcome:** Layout from the raw viewer checkpoint (`?gamepad=debug`) on Linux Chromium. Axes: 0 stick X = roll, 1 stick Y = pitch (pull back = nose up), 2 throttle lever = main throttle (absolute, forward = 100 %), 3 twist = yaw, 4 rocker = RCS forward/back (analog, right = forward), 5/6 hat = RCS left/right and up/down (forward = up). Buttons, chosen by urgency and hand position (8/9 R2/L2 = time warp faster/slower, added in Stage 3b): 0 trigger = assist kill rotation (the "panic button" for a tumble), 1 = hold attitude, 3 = assist off, 2 (R3) = retrograde hold (added in Stage 2b, D-041), 4 = switch camera, 5 (throttle button 6) = reverse toggle (added in Stage 2b, D-042), 11 ST = pause and settings, 10 SE = performance overlay; 6/7 = hyperdrive engage / drop out (Stage 4), 8/9 = time warp (Stage 3). Direct buttons per assist mode instead of a cycle button, so the emergency action is always one press. Dead zones 5 % stick, 10 % twist and rocker; mild response curves. Keyboard and HOTAS work together (axes summed); for the throttle, whichever moved last wins. Everything is rebindable in the pause panel, with per-axis invert, dead zone, curve, and throttle calibration, saved in the browser.
 
 ### D-039: RCS propellant budget
 
@@ -478,7 +485,7 @@ Planning (done 2026-10-14): repository, purpose, scope, tech stack, assets, and 
 - [x] **Stage 2: Input.** HOTAS X support tuned for Linux Chromium, rebindable controls, calibration and dead zones. (2026-10-14; D-039, D-040)
 - [x] **Stage 2b: Game assists.** Retro engines (D-042); retrograde/prograde hold, drift-cancelling flight assist, edge arrows, time-to-stop hint (D-041); spacecraft-shaped greybox (D-043). (2026-10-14)
 - [x] **Stage 3: Earth and Moon.** Real orbits from NASA/JPL data, handling of huge distances, gravity, two-level time warp. Earth for orbits and views only (no landing, D-044). 3a orbits, 3b time warp, and 3c visuals (NASA textures, real stars, Sun, orbit line, map view) done 2026-10-14 (D-045, D-047 to D-049).
-- [ ] **Stage 4: Hyperdrive.** Speed bands 0.1c to 100c, charge-up, gravity-well limits, arrival speed matching.
+- [x] **Stage 4: Hyperdrive.** Speed bands 0.1c to 100c, charge-up, gravity-well limits, arrival speed matching. (2026-10-14; D-050)
 - [ ] **Stage 5: Moon spaceports.** Landing pads on real lunar terrain, vertical landing on thrusters, contact checks, refuelling.
 - [ ] **Stage 6: Orbital stations.** Modular stations, docking with the capture check.
 - [ ] **Stage 7: Second monitor.** Window for instruments, cameras, and maps.

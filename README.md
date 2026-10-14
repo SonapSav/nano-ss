@@ -2,7 +2,7 @@
 
 A realistic space flight game set in the real solar system at real scale, built with Three.js. Fly a spacecraft between planets and moons with a hyperdrive, land at spaceports on airless worlds, and dock with other spacecraft, using the keyboard or a Thrustmaster T.Flight HOTAS X. See [PROJECT.md](PROJECT.md) for scope, decisions, and roadmap.
 
-**Status:** Stage 3 (Earth and Moon): you start in a real 400 km orbit around Earth, with the real Moon, Sun, and stars where they are right now (NASA JPL data and the Yale Bright Star Catalogue), NASA imagery of Earth and the Moon, time warp up to 1000×, and an orbit map.
+**Status:** Stage 3 (Earth and Moon): you start in a real 400 km orbit around Earth, with the real Moon, Sun, and stars where they are right now (NASA JPL data and the Yale Bright Star Catalogue), NASA imagery of Earth and the Moon, time warp up to 1000×, an orbit map, and a hyperdrive to the Moon.
 
 ## Requirements
 
@@ -86,6 +86,7 @@ Each target is a one-line `docker compose` call in the [Makefile](Makefile).
 | M | Map view: orbit line, apoapsis (Ap) and periapsis (Pe), Earth and the Moon (drag to orbit, wheel to zoom) |
 | Mouse drag, wheel | Orbit and zoom the chase camera |
 | F | Fullscreen (also lets the sim receive Ctrl+W, Ctrl+N, Ctrl+T) |
+| U / O | Hyperdrive: charge and engage / drop out (throttle picks the band) |
 | . / , | Time warp faster / slower (1×, 2×, 4× flyable; 10×, 100×, 1000× coasting only) |
 | R | Reset ship: refuel and return to the start |
 | F3 | Performance overlay |
@@ -99,6 +100,12 @@ Physics is Newtonian: a spin or a speed keeps going until thrusters stop it. **F
 - **Time warp** (. and , or R2/L2): up to 4× you keep full control; at 10× to 1000× the ship coasts, so one orbit takes about 5 s at 1000×. Warp drops by itself when you use the controls (to 4×), get within 10 km of the target, head for a low pass, or change sphere of influence (to 1×).
 - **Below 100 km over Earth you burn up** (there is no atmospheric flight); R resets to the start orbit.
 - **Reaching the practice target (◇, 2 km ahead at the start):** point at it, tap the rocker (or H) until closing speed is about 2 m/s, and let go: flight assist **cruises** at that speed and cancels drift. Within about 200 m slow down with the rocker back (or N); at almost 0, or with **X**, FA stops you. Near the target, VEL and STOP are measured in the target's orbiting frame.
+
+### Hyperdrive
+
+- **Engage above 1,000 km over Earth or 100 km over the Moon**; below that the HYPER line says BLOCKED. From the start orbit, raise your orbit with a prograde burn first.
+- **Point at the destination** (☾ for the Moon), set the band with the throttle (quarters: 0.1c, 1c, 10c, 100c), and press **U**: 5 s of charging, then the jump. You can steer with the stick.
+- **Arrival is automatic**: the drive slows near the destination and drops you into a circular orbit at 100 km over the Moon (1,000 km over Earth). **O** drops out anywhere, into a circular orbit around the nearest body.
 
 ### Thrustmaster T.Flight HOTAS X
 
@@ -116,6 +123,7 @@ Plug it in, open the sim, and **press any HOTAS button**: Chromium only shows a 
 | Stick button 3 (R3) | Retrograde hold: turn to face against the motion |
 | Throttle button 5 | Switch camera |
 | Throttle button 6 | Reverse (retro engines) on/off |
+| Throttle buttons 7 / 8 | Hyperdrive engage / drop out |
 | R2 / L2 | Time warp faster / slower |
 | ST / SE | Pause and settings / performance overlay |
 
