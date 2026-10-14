@@ -30,3 +30,71 @@ body {
 .stats.error {
   color: #ff8080;
 }
+
+.hud {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  font:
+    13px/1.5 ui-monospace,
+    monospace;
+  color: #8fe8b0;
+  text-shadow: 0 0 4px rgb(0 0 0 / 90%);
+}
+
+.hud-text {
+  position: absolute;
+  left: 16px;
+  bottom: 16px;
+  white-space: pre;
+}
+
+.hud-paused {
+  position: absolute;
+  top: 30%;
+  width: 100%;
+  text-align: center;
+  font-size: 28px;
+  letter-spacing: 0.3em;
+}
+
+.hud-marker {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  font-size: 22px;
+}
+
+.hud-marker.retrograde {
+  color: #e8c98f;
+}
+
+.panel {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  padding: 16px 24px;
+  font:
+    13px/1.6 ui-sans-serif,
+    system-ui,
+    sans-serif;
+  color: #dde;
+  background: rgb(10 14 20 / 92%);
+  border: 1px solid #345;
+  border-radius: 6px;
+}
+
+.panel h2 {
+  margin: 0 0 8px;
+  font-size: 18px;
+}
+
+.panel button {
+  margin: 8px 0;
+}
+
+.panel td:first-child {
+  padding-right: 16px;
+  color: #8fe8b0;
+  font-family: ui-monospace, monospace;
+}
