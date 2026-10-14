@@ -51,13 +51,38 @@ function validKeyboard(v: unknown): v is Bindings {
       typeof a.positive === 'string' &&
       typeof a.negative === 'string',
   );
-  const press = v.press;
+  // Actions added in later versions may be missing; `withNewActions` fills them in.
   return (
     axesOk &&
     isCodeList(v.hold.throttleUp) &&
     isCodeList(v.hold.throttleDown) &&
-    PRESS_ACTIONS.every((action) => isCodeList(press[action]))
+    Object.values(v.press).every(isCodeList)
   );
+}
+
+/** Adds default keys for actions a save does not know yet, unless the key is already taken. */
+function withNewActions(saved: Bindings, defaults: Bindings): Bindings {
+  const used = new Set([
+    ...saved.axes.flatMap((a) => [a.positive, a.negative]),
+    ...Object.values(saved.hold).flat(),
+    ...Object.values(saved.press).flat(),
+  ]);
+  for (const action of PRESS_ACTIONS) {
+    if (Array.isArray(saved.press[action])) continue;
+    saved.press[action] = defaults.press[action].filter((code) => !used.has(code));
+  }
+  return saved;
+}
+
+/** Same for gamepad buttons: new actions get their default button if it is still free. */
+function withNewButtons(saved: GamepadProfile, defaults: GamepadProfile): GamepadProfile {
+  const used = new Set(Object.values(saved.buttons));
+  for (const action of PRESS_ACTIONS) {
+    const index = defaults.buttons[action];
+    if (action in saved.buttons || index === undefined || used.has(index)) continue;
+    saved.buttons[action] = index;
+  }
+  return saved;
 }
 
 function validMapping(v: unknown): v is AxisMapping {
@@ -103,10 +128,15 @@ export function loadInputSettings(storage: StorageLike | null = browserStorage()
   }
   if (!isRecord(parsed) || parsed.version !== VERSION) return defaults;
 
-  const keyboard = validKeyboard(parsed.keyboard) ? parsed.keyboard : defaults.keyboard;
+  const keyboard = validKeyboard(parsed.keyboard)
+    ? withNewActions(parsed.keyboard, defaults.keyboard)
+    : defaults.keyboard;
   // Saved edits replace built-ins of the same name; new built-ins still appear.
   const saved = Array.isArray(parsed.profiles) ? parsed.profiles.filter(validProfile) : [];
-  const profiles = defaults.profiles.map((p) => saved.find((s) => s.name === p.name) ?? p);
+  const profiles = defaults.profiles.map((p) => {
+    const match = saved.find((s) => s.name === p.name);
+    return match ? withNewButtons(match, p) : p;
+  });
   const calibration: Record<string, ThrottleCalibration> = {};
   if (isRecord(parsed.throttleCalibration)) {
     for (const [name, cal] of Object.entries(parsed.throttleCalibration)) {

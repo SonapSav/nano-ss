@@ -51,10 +51,12 @@ export const HOTAS_X_LINUX: GamepadProfile = {
     assistKill: 0, // stick trigger: the "panic button" for a tumble
     assistHold: 1,
     assistOff: 3,
+    assistRetrograde: 2, // R3
     switchCamera: 4,
+    toggleReverse: 5, // throttle button 6
     toggleStats: 10, // SE
     pause: 11, // ST
-    // 2 (R3) and 5 free; 6/7 reserved for hyperdrive, 8/9 for time warp.
+    // 6/7 reserved for hyperdrive, 8/9 for time warp.
   },
 };
 

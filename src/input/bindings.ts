@@ -20,6 +20,10 @@ export type PressAction =
   | 'assistKill'
   | 'assistHold'
   | 'assistOff'
+  | 'assistPrograde'
+  | 'assistRetrograde'
+  | 'toggleFlightAssist'
+  | 'toggleReverse'
   | 'switchCamera'
   | 'pause'
   | 'toggleStats'
@@ -33,6 +37,10 @@ export const PRESS_ACTIONS: readonly PressAction[] = [
   'assistKill',
   'assistHold',
   'assistOff',
+  'assistPrograde',
+  'assistRetrograde',
+  'toggleFlightAssist',
+  'toggleReverse',
   'switchCamera',
   'pause',
   'toggleStats',
@@ -47,6 +55,10 @@ export const PRESS_ACTION_LABELS: Record<PressAction, string> = {
   assistKill: 'Assist: kill rotation',
   assistHold: 'Assist: hold attitude',
   assistOff: 'Assist: off',
+  assistPrograde: 'Assist: prograde hold',
+  assistRetrograde: 'Assist: retrograde hold',
+  toggleFlightAssist: 'Flight assist (FA) on/off',
+  toggleReverse: 'Reverse (retro engines) on/off',
   switchCamera: 'Switch camera',
   pause: 'Pause and settings',
   toggleStats: 'Performance overlay',
@@ -93,6 +105,10 @@ export const DEFAULT_BINDINGS: Readonly<Bindings> = {
     assistKill: [],
     assistHold: [],
     assistOff: [],
+    assistPrograde: ['KeyG'],
+    assistRetrograde: ['KeyV'],
+    toggleFlightAssist: ['KeyY'],
+    toggleReverse: ['KeyB'],
     switchCamera: ['KeyC'],
     pause: ['Escape'],
     toggleStats: ['F3'],
