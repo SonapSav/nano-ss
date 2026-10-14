@@ -136,6 +136,8 @@ export function stepShip(
   rcs: RcsCommand,
   dt: number,
   gravity?: { field: AccelerationField; t0: number },
+  /** Other forces on the ship this step, e.g. ground contacts: world-frame force (N), body-axis torque (N·m). */
+  external?: { force: Vector3; torque: Vector3 },
 ): void {
   const { mainEngine, retroEngine, rcs: rcsConfig } = ship.config;
 
@@ -181,12 +183,14 @@ export function stepShip(
   _force
     .set(tr.x * rcsForce, tr.y * rcsForce, tr.z * rcsForce + axial)
     .applyQuaternion(ship.body.orientation);
+  if (external) _force.add(external.force);
 
   _torque.set(
     rot.x * rcsConfig.torque.x * rcsFraction,
     rot.y * rcsConfig.torque.y * rcsFraction,
     rot.z * rcsConfig.torque.z * rcsFraction,
   );
+  if (external) _torque.add(external.torque);
 
   integrateBody(
     ship.body,

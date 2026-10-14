@@ -1,4 +1,5 @@
 import { Vector3 } from 'three/webgpu';
+import type { GroundProbe } from '../sim/contact';
 import { EARTH, MOON, MOON_SOI, type BodyInfo } from './bodies';
 import type { Ephemeris } from './ephemeris';
 import {
@@ -40,6 +41,8 @@ export class World {
   private readonly _local = new Vector3();
   private readonly _omega = new Vector3();
   private readonly _offset = new Vector3();
+  private readonly _probe = new Vector3();
+  private readonly _pad = new Vector3();
 
   constructor(
     readonly clock: SimClock,
@@ -98,6 +101,52 @@ export class World {
     this._omega.crossVectors(t.position, t.velocity).divideScalar(t.position.lengthSq());
     this._offset.subVectors(position, t.position);
     return out.crossVectors(this._omega, this._offset).add(t.velocity);
+  }
+
+  /**
+   * Ground probe for landing contacts: spaceport terrain only (Infinity
+   * elsewhere, where touching the Moon is a crash, D-006). Height is along
+   * the local vertical; the normal comes from the terrain's slope.
+   */
+  readonly probeGround: GroundProbe = (point, normal, velocity) => {
+    const local = this.moonFrame.toLocal(point, this._probe);
+    for (const { site } of this.spaceports) {
+      const p = site.project(local);
+      if (!p || !site.contains(p.x, p.y)) continue;
+      const height = site.height(p.x, p.y);
+      const slopeEast = (site.height(p.x + 1, p.y) - site.height(p.x - 1, p.y)) / 2;
+      const slopeNorth = (site.height(p.x, p.y + 1) - site.height(p.x, p.y - 1)) / 2;
+      normal
+        .copy(local)
+        .normalize()
+        .addScaledVector(site.east, -slopeEast)
+        .addScaledVector(site.north, -slopeNorth)
+        .normalize()
+        .applyQuaternion(this.moonFrame.orientation);
+      this.moonFrame.groundVelocity(point, velocity);
+      return local.length() - (MOON.radius + height);
+    }
+    return Infinity;
+  };
+
+  /** True over spaceport terrain, where contacts replace the sphere crash test. */
+  onSiteTerrain(position: Vector3): boolean {
+    const local = this.moonFrame.toLocal(position, this._probe);
+    return this.spaceports.some(({ site }) => {
+      const p = site.project(local);
+      return p !== null && site.contains(p.x, p.y);
+    });
+  }
+
+  /** The spaceport whose pad is nearest the ship, and the distance to the pad centre (m). */
+  nearestPad(position: Vector3): { port: Spaceport; distance: number } | null {
+    const local = this.moonFrame.toLocal(position, this._probe);
+    let best: { port: Spaceport; distance: number } | null = null;
+    for (const port of this.spaceports) {
+      const distance = port.site.padPoint(this._pad).distanceTo(local);
+      if (!best || distance < best.distance) best = { port, distance };
+    }
+    return best;
   }
 
   /** Altitude above the Moon's actual ground (spaceport terrain or the reference sphere), m. */

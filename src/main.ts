@@ -32,6 +32,7 @@ import { WARP_DROP_MESSAGES } from './world/timeWarp';
 import { createPhysicsState, stepPhysics, type HyperEvent } from './game/physicsStep';
 import { C } from './world/hyperdrive';
 import { HYPER_MESSAGES, hyperHud } from './game/hyperHud';
+import { landingLine, landingMessage } from './game/landingHud';
 import { SimClock, gmstRadians } from './world/time';
 import { TARGET_NEAR, World } from './world/world';
 
@@ -42,6 +43,8 @@ const RAD_TO_DEG = 180 / Math.PI;
 const SHADOW_ALTITUDE = 50_000;
 /** Below this height over the lunar ground the orbit line shows only in the map view (m). */
 const ORBIT_LINE_ALTITUDE = 30_000;
+/** Landing lights sit this far below the centre of mass, tail down (m). */
+const LIGHTS_BELOW_CENTRE = 3.6;
 /** Body axes have -Z forward; the HUD shows forward as positive. */
 const FLIP_Z = new Vector3(1, 1, -1);
 
@@ -129,11 +132,20 @@ async function main(): Promise<void> {
     if (events.warpDrop) {
       notice = { text: WARP_DROP_MESSAGES[events.warpDrop], until: performance.now() + 4000 };
     }
+    if (events.landing) {
+      notice = {
+        text: landingMessage(events.landing, physics.landing),
+        until: performance.now() + 5000,
+      };
+    }
     if (events.hazard) {
+      const h = events.hazard;
       alert =
-        events.hazard.kind === 'burned-up'
+        h.kind === 'burned-up'
           ? "BURNED UP in Earth's atmosphere. Press R to reset."
-          : 'CRASHED into the Moon. Press R to reset.';
+          : h.detail
+            ? `CRASHED: ${h.detail}. Press R to reset.`
+            : 'CRASHED into the Moon. Press R to reset.';
       physics.warp.limit(1);
       loop.paused = true;
     }
@@ -148,12 +160,15 @@ async function main(): Promise<void> {
   ]);
   world.spaceports = spaceports;
 
-  // Test start (?start=tranquility or ?start=shackleton): 2 km over the pad, tail down, matching the ground.
-  const testStart = new URLSearchParams(location.search).get('start');
+  // Test start (?start=tranquility or ?start=shackleton, optional &alt=metres, default 2 km):
+  // over the pad, tail down, matching the ground.
+  const params = new URLSearchParams(location.search);
+  const testStart = params.get('start');
+  const testAltitude = Number(params.get('alt') ?? 2000) || 2000;
   const startPort = spaceports.find((p) => p.name === testStart);
   if (startPort) {
     const up = startPort.site.padPoint(new Vector3()).normalize();
-    const local = startPort.site.padPoint(new Vector3()).addScaledVector(up, 2000);
+    const local = startPort.site.padPoint(new Vector3()).addScaledVector(up, testAltitude);
     world.moonFrame.toWorld(local, ship.body.position);
     world.moonFrame.groundVelocity(ship.body.position, ship.body.velocity);
     const upWorld = up.clone().applyQuaternion(world.moonFrame.orientation);
@@ -225,6 +240,7 @@ async function main(): Promise<void> {
   const velocityShip = new Vector3();
   const inverseOrientation = new Quaternion();
   let statsVisible = true;
+  let landingLights = false;
   let last = performance.now();
 
   await renderer.setAnimationLoop((now: number) => {
@@ -281,6 +297,9 @@ async function main(): Promise<void> {
         case 'toggleMap':
           rig.toggleMap();
           break;
+        case 'toggleLandingLights':
+          landingLights = !landingLights;
+          break;
         case 'pause':
           setPaused(!loop.paused);
           break;
@@ -305,6 +324,7 @@ async function main(): Promise<void> {
           break;
         case 'resetShip':
           placeAtStart();
+          physics.landing.reset();
           physics.hyper.finishDrop();
           physics.warp.limit(1);
           physics.reference = world.referenceBody(ship.body.position);
@@ -357,6 +377,7 @@ async function main(): Promise<void> {
       moonOrientation: world.moonFrame.orientation,
       shadows: settings.shadows && moonAltitude < SHADOW_ALTITUDE,
       mapView: rig.mode === 'map',
+      landingLights: landingLights ? moonAltitude - LIGHTS_BELOW_CENTRE : null,
       sun: world.sunPosition,
       target: renderTarget,
       earthRotation: gmstRadians(clock.jd),
@@ -420,6 +441,7 @@ async function main(): Promise<void> {
           ship.body.orientation,
           controls.throttle,
         ),
+        landing: landingLine(physics.landing),
         warp: physics.warp.factor,
         notice: notice && performance.now() < notice.until ? notice.text : null,
         alert,

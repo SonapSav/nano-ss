@@ -62,6 +62,8 @@ export interface HudData {
   alert: string | null;
   /** Hyperdrive status for the HYPER line (Stage 4). */
   hyper: HudHyper;
+  /** Landing status line (contact, landed, services, leg damage), or null (Stage 5). */
+  landing: string | null;
   /** Periapsis and apoapsis in render space (ship at the origin), or null. */
   periapsis: Vector3 | null;
   apoapsis: Vector3 | null;
@@ -263,6 +265,7 @@ export function createHud(parent: HTMLElement) {
               `         period ${duration(o.period)}  inc ${((o.inclination * 180) / Math.PI).toFixed(1)}°  Moon ${formatDistance(data.moonDistance)}`,
             ]),
         hyperLine(data.hyper),
+        ...(data.landing ? [data.landing] : []),
         `TARGET   ${formatDistance(data.targetDistance)}  closing ${formatSpeed(data.closingSpeed)}`,
         `VEL      fwd ${signed(data.velocityShip.z)}  right ${signed(data.velocityShip.x)}  up ${signed(data.velocityShip.y)} m/s (to target)`,
         `RATES    P ${rate(data.pitchRate)}  Y ${rate(data.yawRate)}  R ${rate(data.rollRate)} °/s`,

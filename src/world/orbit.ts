@@ -188,21 +188,25 @@ export function orientationFromForwardUp(
   return out.setFromRotationMatrix(_m.makeBasis(_x, _y, _z));
 }
 
-export type Hazard = { kind: 'burned-up'; body: 'Earth' } | { kind: 'crashed'; body: 'Moon' };
+export type Hazard =
+  | { kind: 'burned-up'; body: 'Earth' }
+  /** `detail` says how, for crashes on spaceport terrain (hull strike, tipped over, too fast). */
+  | { kind: 'crashed'; body: 'Moon'; detail?: string };
 
 /**
  * Checks the ship against Earth's atmosphere line (100 km, D-044) and the
- * Moon's surface; `moonAltitude` (above the actual ground, e.g. spaceport
- * terrain) replaces the sphere test when given.
+ * Moon's reference sphere. Over spaceport terrain (`onSiteTerrain`) the
+ * landing contacts judge the ground instead, so the sphere is not tested.
  */
 export function checkHazard(
   position: Vector3,
   moon: Vector3,
-  moonAltitude?: number,
+  onSiteTerrain = false,
 ): Hazard | null {
   if (position.length() - EARTH.radius < EARTH.hazardAltitude)
     return { kind: 'burned-up', body: 'Earth' };
-  const altitude = moonAltitude ?? position.distanceTo(moon) - MOON.radius;
-  if (altitude < MOON.hazardAltitude) return { kind: 'crashed', body: 'Moon' };
+  if (onSiteTerrain) return null;
+  if (position.distanceTo(moon) - MOON.radius < MOON.hazardAltitude)
+    return { kind: 'crashed', body: 'Moon' };
   return null;
 }

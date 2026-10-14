@@ -8,7 +8,7 @@ import {
   MeshStandardMaterial,
   PointLight,
   SphereGeometry,
-  TorusGeometry,
+  RingGeometry,
   Vector3,
 } from 'three/webgpu';
 import type { Site } from '../world/terrain';
@@ -30,10 +30,11 @@ export function createSpaceport(site: Site) {
   const hull = new MeshStandardMaterial({ color: 0xd8dade, roughness: 0.5, metalness: 0.3 });
   const dark = new MeshStandardMaterial({ color: 0x3a3d44, roughness: 0.6 });
 
+  // Set into the ground, its top 5 cm up: the landing legs stand on the terrain height.
   const pad = new Mesh(new CylinderGeometry(30, 31, 0.6, 48), concrete);
-  pad.position.y = 0.3;
-  const ring = new Mesh(new TorusGeometry(22, 0.6, 6, 64).rotateX(Math.PI / 2), paint);
-  ring.position.y = 0.62;
+  pad.position.y = -0.25;
+  const ring = new Mesh(new RingGeometry(21.4, 22.6, 64).rotateX(-Math.PI / 2), paint);
+  ring.position.y = 0.07;
   port.add(pad, ring);
 
   const lightMaterial = new MeshBasicMaterial({ color: 0x9fe0ff });
@@ -41,7 +42,7 @@ export function createSpaceport(site: Site) {
   for (let k = 0; k < 16; k++) {
     const a = (k / 16) * Math.PI * 2;
     const lamp = new Mesh(new SphereGeometry(0.25, 8, 4), lightMaterial);
-    lamp.position.set(Math.cos(a) * 29, 0.8, Math.sin(a) * 29);
+    lamp.position.set(Math.cos(a) * 29, 0.25, Math.sin(a) * 29);
     edgeLights.push(lamp);
     port.add(lamp);
   }

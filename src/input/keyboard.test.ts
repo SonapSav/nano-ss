@@ -66,7 +66,7 @@ describe('KeyboardInput', () => {
   it('ignores unbound keys and leaves them to the browser', () => {
     const target = new EventTarget();
     const input = new KeyboardInput(target, DEFAULT_BINDINGS);
-    const event = key('keydown', 'KeyP');
+    const event = key('keydown', 'Backslash');
     target.dispatchEvent(event);
     expect(event.defaultPrevented).toBe(false);
     expect(input.held.size).toBe(0);

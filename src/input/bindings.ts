@@ -25,6 +25,7 @@ export type PressAction =
   | 'toggleFlightAssist'
   | 'toggleReverse'
   | 'toggleMap'
+  | 'toggleLandingLights'
   | 'hyperEngage'
   | 'hyperDrop'
   | 'warpUp'
@@ -47,6 +48,7 @@ export const PRESS_ACTIONS: readonly PressAction[] = [
   'toggleFlightAssist',
   'toggleReverse',
   'toggleMap',
+  'toggleLandingLights',
   'hyperEngage',
   'hyperDrop',
   'warpUp',
@@ -70,6 +72,7 @@ export const PRESS_ACTION_LABELS: Record<PressAction, string> = {
   toggleFlightAssist: 'Flight assist (FA) on/off',
   toggleReverse: 'Reverse (retro engines) on/off',
   toggleMap: 'Map view on/off',
+  toggleLandingLights: 'Landing lights on/off',
   hyperEngage: 'Hyperdrive: charge and engage',
   hyperDrop: 'Hyperdrive: drop out',
   warpUp: 'Time warp faster',
@@ -125,6 +128,7 @@ export const DEFAULT_BINDINGS: Readonly<Bindings> = {
     toggleFlightAssist: ['KeyY'],
     toggleReverse: ['KeyB'],
     toggleMap: ['KeyM'],
+    toggleLandingLights: ['KeyP'],
     hyperEngage: ['KeyU'],
     hyperDrop: ['KeyO'],
     warpUp: ['Period'],

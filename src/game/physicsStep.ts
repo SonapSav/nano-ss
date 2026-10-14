@@ -13,6 +13,15 @@ import {
 } from '../world/timeWarp';
 import { TARGET_NEAR, type World } from '../world/world';
 import {
+  Landing,
+  holdLanded,
+  landingContacts,
+  liftOff,
+  liftoffRequested,
+  settle,
+  type LandingEvent,
+} from './landing';
+import {
   BANDS,
   C,
   Hyperdrive,
@@ -36,6 +45,7 @@ export interface PhysicsState {
   reference: BodyInfo;
   insideTargetZone: boolean;
   hyper: Hyperdrive;
+  landing: Landing;
 }
 
 export type HyperEvent = 'charging' | 'blocked' | 'aborted' | 'engaged' | 'arrived' | 'dropped';
@@ -44,6 +54,7 @@ export interface StepEvents {
   hazard: Hazard | null;
   warpDrop: WarpDropReason | null;
   hyper: HyperEvent | null;
+  landing: LandingEvent | null;
 }
 
 const INPUT = 0.01;
@@ -64,6 +75,7 @@ export function createPhysicsState(
     reference: world.referenceBody(ship.body.position),
     insideTargetZone: ship.body.position.distanceTo(world.target.position) < TARGET_WARP_ZONE,
     hyper: new Hyperdrive(),
+    landing: new Landing(),
   };
 }
 
@@ -144,7 +156,8 @@ function stepHyperdrive(s: PhysicsState, dt: number, bodies: BodyNow[], events: 
  */
 export function stepPhysics(s: PhysicsState, realDt: number): StepEvents {
   const { ship, world, fc, controls, commands } = s;
-  const events: StepEvents = { hazard: null, warpDrop: null, hyper: null };
+  const events: StepEvents = { hazard: null, warpDrop: null, hyper: null, landing: null };
+  const landing = s.landing;
   const body = ship.body;
 
   // Hyperdrive requests and charging (D-015, D-018, Stage 4).
@@ -187,14 +200,41 @@ export function stepPhysics(s: PhysicsState, realDt: number): StepEvents {
   const count = Math.max(1, Math.ceil(simDt / longest));
   const h = simDt / count;
   for (let i = 0; i < count; i++) {
-    stepShip(ship, commands.engines, commands.rcs, h, { field: world.gravityField, t0: 0 });
+    if (landing.phase === 'landed') {
+      if (liftoffRequested(controls)) {
+        liftOff(landing);
+        events.landing = 'liftoff';
+      } else {
+        // Landed: the ship rides on the ground, so any time warp is safe.
+        world.stepTarget(h);
+        world.clock.seconds += h;
+        world.refresh();
+        events.landing = holdLanded(landing, ship, world, h) ?? events.landing;
+        continue;
+      }
+    }
+    const contact = landingContacts(landing, ship, world, h);
+    events.landing = contact.event ?? events.landing;
+    if (contact.hazard) {
+      events.hazard = contact.hazard;
+      return events;
+    }
+    stepShip(
+      ship,
+      commands.engines,
+      commands.rcs,
+      h,
+      { field: world.gravityField, t0: 0 },
+      contact.external,
+    );
     world.stepTarget(h);
     world.clock.seconds += h;
     world.refresh();
+    events.landing = settle(landing, ship, world, h) ?? events.landing;
     events.hazard = checkHazard(
       body.position,
       world.moonPosition,
-      world.moonGroundAltitude(body.position),
+      world.onSiteTerrain(body.position),
     );
     if (events.hazard) return events;
   }
@@ -206,11 +246,12 @@ export function stepPhysics(s: PhysicsState, realDt: number): StepEvents {
   _orbital.subVectors(body.velocity, refState.velocity);
   const elements = orbitElements(_relative, _orbital, refBody.gm);
   const inZone = body.position.distanceTo(world.target.position) < TARGET_WARP_ZONE;
+  const landed = landing.phase === 'landed';
   const drop = warpDrop({
     factor: s.warp.factor,
-    altitude: _relative.length() - refBody.radius,
+    altitude: landed ? Infinity : _relative.length() - refBody.radius,
     safeAltitude: refBody.warpSafeAltitude,
-    periapsisAltitude: elements.periapsisRadius - refBody.radius,
+    periapsisAltitude: landed ? Infinity : elements.periapsisRadius - refBody.radius,
     timeToPeriapsis: elements.timeToPeriapsis,
     enteredTargetZone: inZone && !s.insideTargetZone,
     referenceChanged: refBody !== s.reference,

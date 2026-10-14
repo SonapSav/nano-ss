@@ -12,6 +12,7 @@ import {
   MeshStandardMaterial,
   PointLight,
   Scene,
+  SpotLight,
   SphereGeometry,
   Vector3,
   type Quaternion,
@@ -19,7 +20,7 @@ import {
   type Texture,
 } from 'three/webgpu';
 import type { OrbitElements } from '../world/orbit';
-import { EARTH } from '../world/bodies';
+import { EARTH, MOON } from '../world/bodies';
 import { createHyperStreaks } from './hyperStreaks';
 import { createOrbitLine, orbitPoints } from './orbitLine';
 import { createEarth, createMoon } from './planets';
@@ -120,7 +121,17 @@ function createShipModel() {
   flood.position.set(0, 3, 6);
   ship.add(flood);
 
-  return { ship, engineGlow, glowMaterial, retroGlows, retroMaterial, strobe };
+  // Landing lights: two spots beside the engine, shining down past the legs (tail-down landings).
+  // Always in the scene and dimmed to 0 when off, so switching them does not rebuild shaders.
+  const landingLights = [-1, 1].map((side) => {
+    const spot = new SpotLight(0xfff4e0, 0, 0, 0.6, 0.5, 2);
+    spot.position.set(side * 1.0, 0, 3.6);
+    spot.target.position.set(side * 3, 0, 40);
+    ship.add(spot, spot.target);
+    return spot;
+  });
+
+  return { ship, engineGlow, glowMaterial, retroGlows, retroMaterial, strobe, landingLights };
 }
 
 export interface SceneFrame {
@@ -142,6 +153,8 @@ export interface SceneFrame {
   shadows: boolean;
   /** Map view: shows the Moon's orbit line. */
   mapView: boolean;
+  /** Landing lights (Stage 5), off when null; otherwise their height above the ground (m), for dimming. */
+  landingLights: number | null;
   /** Motion dust is shown around the target only when the ship is near it. */
   showDust: boolean;
   timeSeconds: number;
@@ -154,11 +167,20 @@ export interface SceneFrame {
 
 /** True if `p` is inside Earth's shadow (cylinder model; the umbra cone is ignored). */
 export function inEarthShadow(p: Vector3, sun: Vector3): boolean {
-  const toSun = _sunDir.copy(sun).normalize();
-  const along = p.dot(toSun);
-  if (along > 0) return false;
-  return p.lengthSq() - along * along < EARTH.radius * EARTH.radius;
+  return blocked(p, sun, ORIGIN, EARTH.radius);
 }
+
+/** True if a sphere (centre, radius) blocks the line of sight from `p` toward the point `toward`. */
+export function blocked(p: Vector3, toward: Vector3, center: Vector3, radius: number): boolean {
+  const direction = _sightDir.subVectors(toward, p).normalize();
+  const m = _sightOffset.subVectors(center, p);
+  const along = m.dot(direction);
+  if (along < 0) return false;
+  return m.lengthSq() - along * along < radius * radius;
+}
+const ORIGIN = new Vector3();
+const _sightDir = new Vector3();
+const _sightOffset = new Vector3();
 const _sunDir = new Vector3();
 const _shipDir = new Vector3();
 /** Earthshine intensity with a fully lit Earth (a game-friendly brightness, not photometric). */
@@ -169,6 +191,10 @@ const EARTHSHINE = 1.5;
  * (the Earth-centred frame) sits at minus the ship's 64-bit position, so
  * three.js combines the large offsets in 64-bit before anything reaches the GPU.
  */
+/** Landing light intensity (cd): about sunlight on the ground from 30 m up; and the brightest pool allowed. */
+const LANDING_LIGHT = 5_000;
+const LANDING_GLARE = 20;
+
 /** Shadow camera half-size and distance from the ship (m). */
 const SHADOW_HALF = 1_500;
 const SHADOW_DISTANCE = 8_000;
@@ -228,7 +254,8 @@ export function createSpaceScene(assets: SceneAssets) {
   );
   worldRoot.add(target);
 
-  const { ship, engineGlow, glowMaterial, retroGlows, retroMaterial, strobe } = createShipModel();
+  const { ship, engineGlow, glowMaterial, retroGlows, retroMaterial, strobe, landingLights } =
+    createShipModel();
   // The hull casts a shadow on the ground (glows and lights do not).
   ship.traverse((o) => {
     if (o instanceof Mesh && o.material instanceof MeshStandardMaterial) o.castShadow = true;
@@ -260,19 +287,29 @@ export function createSpaceScene(assets: SceneAssets) {
       // Earth sits at the Earth-centred origin, i.e. at -ship in render space.
       earthshine.position.copy(f.ship).negate().normalize();
       const litFraction = (1 + _sunDir.dot(_shipDir.copy(f.ship).normalize())) / 2;
-      earthshine.intensity = EARTHSHINE * litFraction;
+      // On the Moon's far side (or behind it) Earth is below the horizon.
+      earthshine.intensity = blocked(f.ship, ORIGIN, f.moon, MOON.radius)
+        ? 0
+        : EARTHSHINE * litFraction;
       earth.update(f.earthRotation, _sunDir);
       sunDisc.update(f.sun);
 
       streaks.update(f.hyperSpeed !== null, f.hyperSpeed ?? 0, f.dt);
       moonOrbitLine.line.visible = f.mapView;
+      // Dimmed near the ground, so the pool under the ship never glares (about LANDING_GLARE at most).
+      const lightHeight = f.landingLights === null ? 0 : Math.max(0.5, f.landingLights);
+      const dimming = Math.min(1, (LANDING_GLARE * lightHeight * lightHeight) / LANDING_LIGHT);
+      for (const spot of landingLights)
+        spot.intensity = f.landingLights === null ? 0 : LANDING_LIGHT * dimming;
       orbitLine.line.visible = f.orbit !== null;
       if (f.orbit) {
         orbitPoints(f.orbit.elements, f.orbit.maxRadius, orbitLine.positions);
         orbitLine.line.position.copy(f.orbit.center);
         orbitLine.commit();
       }
-      sun.intensity = inEarthShadow(f.ship, f.sun) ? 0 : 4;
+      // No sunlight in Earth's shadow, or at night on the Moon (the Sun below the horizon).
+      sun.intensity =
+        inEarthShadow(f.ship, f.sun) || blocked(f.ship, f.sun, f.moon, MOON.radius) ? 0 : 4;
       strobe.visible = f.timeSeconds % 1.5 < 0.08;
 
       engineGlow.visible = f.throttle > 0.001;

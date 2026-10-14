@@ -22,8 +22,8 @@ export interface SiteData {
   padY: number;
 }
 
-/** Pad radius (flat), and the blend ring around it (m). */
-export const PAD_RADIUS = 60;
+/** Flat apron radius around the pad centre (covers the pad and the spaceport buildings), and its blend ring (m). */
+export const PAD_RADIUS = 100;
 const PAD_BLEND = 60;
 /** Bands where the detailed window blends into the ring, and the ring into the reference sphere (m). */
 const WINDOW_BLEND = 2_000;
