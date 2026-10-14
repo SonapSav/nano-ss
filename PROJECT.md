@@ -85,22 +85,36 @@ nano-ss/
 
 Items discussed but not yet decided. Each entry records when it was raised, who owns the decision, and the actions expected from them. When an item is decided, move it to **Resolved Decisions** with the outcome and date.
 
-### D-026: Own Google OAuth client for rclone
+### D-028: Backup of Blender sources to the NAS
 
 - **Raised:** 2026-10-14
 - **Owner:** Panos
-- **Status:** Open
-- **Context:** The `nano-ss-drive` remote uses rclone's shared Google client ID, which rclone warns is being retired during 2026 and will then stop working, breaking backups. Fix: create an own OAuth client in Google Cloud Console on the PrimeSoft Workspace (Drive API enabled, consent screen type "Internal", client type "Desktop app"), then recreate the remote with that client ID and secret. Run the recreate command in a separate terminal, not with `!` in Claude Code, so the client secret stays out of the chat. Guide: https://rclone.org/drive/#making-your-own-client-id
-- **Action expected (Panos):** Create the OAuth client and recreate the remote, then ask Claude to verify with `rclone about nano-ss-drive:`.
+- **Status:** Open (Panos will decide later)
+- **Context:** Blender sources are versioned in a separate private GitHub repo (D-027), which is also their off-site copy. Panos has a NAS on the local network and will decide later whether and how to back up to it (e.g. a scheduled copy of the assets folder, or a second git remote on the NAS).
+- **Action expected (Panos):** Decide whether to add a NAS backup, and how, when ready.
 
 ## Resolved Decisions
+
+### D-027: Replace the Google Drive backup
+
+- **Raised:** 2026-10-14
+- **Decided:** 2026-10-14
+- **Owner:** Panos
+- **Outcome:** Google Drive dropped as too much setup for this project. Blender sources live in `~/Development/nano-ss-assets`, which is its own git repository pushed to a separate private GitHub repo under the `SonapSav` account (plain git, no LFS for now). Rules: textures kept as separate files, not packed into `.blend` files; commit at milestones, not every save; move to Git LFS if a file nears 50 MB or the repo nears 1 GB. The private repo is not linked from this public repo (no submodule). Cleanup done: rclone remote, config, and binary removed from the dev machine, `scripts/backup-assets.sh` removed, and Panos removed rclone's Google access. Rejected options: Git LFS from the start (small free quota), local-only backup (no off-site copy; a NAS backup may be added later, see D-028).
+
+### D-026: Own Google OAuth client for rclone
+
+- **Raised:** 2026-10-14
+- **Decided:** 2026-10-14
+- **Owner:** Panos
+- **Outcome:** Dropped. Not needed after Google Drive was replaced (D-027).
 
 ### D-025: Google Drive storage and backup tool
 
 - **Raised:** 2026-10-14
 - **Decided:** 2026-10-14
 - **Owner:** Panos
-- **Outcome:** `.blend` sources are backed up with rclone (v1.75.2 in `~/.local/bin`) to Panos's PrimeSoft Google Workspace Drive: 2 TiB total, about 93 MiB used on 2026-10-14. Remote name `nano-ss-drive`, scope `drive.file` (rclone only sees files it creates). Local working folder `~/Development/nano-ss-assets`; backup command `scripts/backup-assets.sh` syncs it to `nano-ss-assets/current` and moves replaced or deleted files to `nano-ss-assets/versions/<timestamp>`. The first authorization printed the OAuth tokens into the chat, so that grant was to be revoked and the remote was recreated without printing them. Own OAuth client continues in D-026.
+- **Outcome:** Superseded by D-027 on 2026-10-14. Originally: `.blend` sources are backed up with rclone (v1.75.2 in `~/.local/bin`) to Panos's PrimeSoft Google Workspace Drive: 2 TiB total, about 93 MiB used on 2026-10-14. Remote name `nano-ss-drive`, scope `drive.file` (rclone only sees files it creates). Local working folder `~/Development/nano-ss-assets`; backup command `scripts/backup-assets.sh` syncs it to `nano-ss-assets/current` and moves replaced or deleted files to `nano-ss-assets/versions/<timestamp>`. The first authorization printed the OAuth tokens into the chat, so that grant was to be revoked and the remote was recreated without printing them. Own OAuth client continues in D-026.
 
 ### D-021: Cockpit
 
@@ -116,7 +130,7 @@ Items discussed but not yet decided. Each entry records when it was raised, who 
 - **Owner:** Panos
 - **Outcome:**
   - **Licensing:** commit only assets that are our own, public domain, CC0, or CC-BY (credited); record every third-party asset in `ASSETS.md` (source, author, license, link). No NC licenses; SA only if accepted knowingly. NASA imagery is allowed, but no NASA logos or insignia and nothing implying NASA endorsement. Assets with restrictive licenses stay out of the repo.
-  - **Storage (hybrid):** `.blend` sources live outside the repo and are backed up to Google Drive on Panos's PrimeSoft Google Workspace account (D-025); `.gitignore` excludes `*.blend` files. Exported, compressed game models (GLB with compressed textures) are committed so the Docker build is self-contained. Large NASA/USGS data is downloaded and processed by a script during the scenery build, cached locally in `data-cache/` (git-ignored). Storage and backup tool: see D-025.
+  - **Storage (hybrid):** `.blend` sources live outside the repo and are kept in a separate private GitHub repo (D-027); `.gitignore` excludes `*.blend` files. Exported, compressed game models (GLB with compressed textures) are committed so the Docker build is self-contained. Large NASA/USGS data is downloaded and processed by a script during the scenery build, cached locally in `data-cache/` (git-ignored). Source storage: see D-027.
 
 ### D-024: Project license
 

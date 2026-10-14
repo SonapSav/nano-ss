@@ -31,7 +31,7 @@ build/
 out/
 coverage/
 
-# Blender sources (kept outside the repo, backed up to Google Drive; D-022)
+# Blender sources (kept in a separate private repo; D-022, D-027)
 *.blend
 *.blend[0-9]*
 
