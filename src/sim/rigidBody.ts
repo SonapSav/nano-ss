@@ -1,4 +1,5 @@
 import { Quaternion, Vector3 } from 'three/webgpu';
+import { integratePoint, type AccelerationField } from '../world/orbit';
 
 /**
  * Rigid body state in an inertial frame. All values are 64-bit (JavaScript
@@ -46,6 +47,7 @@ function angularAcceleration(w: Vector3, torque: Vector3, inertia: Inertia, out:
   );
 }
 
+const _thrustAccel = new Vector3();
 const _k1 = new Vector3();
 const _k2 = new Vector3();
 const _k3 = new Vector3();
@@ -56,7 +58,8 @@ const _dq = new Quaternion();
 
 /**
  * Advances the body by `dt` seconds.
- * - Linear motion: semi-implicit Euler with `forceWorld` (N) and `mass` (kg).
+ * - Linear motion: with `gravity`, RK4 on gravity plus thrust (accurate orbits);
+ *   without it, semi-implicit Euler with `forceWorld` (N) and `mass` (kg).
  * - Angular velocity: RK4 on Euler's equations, so torque-free tumbling and
  *   precession behave physically with little energy drift.
  * - Orientation: exact rotation by the mean angular velocity over the step.
@@ -68,9 +71,16 @@ export function integrateBody(
   mass: number,
   inertia: Inertia,
   dt: number,
+  /** Gravity field and the sim time of the step start; with it, translation uses RK4 (orbits). */
+  gravity?: { field: AccelerationField; t0: number },
 ): void {
-  state.velocity.addScaledVector(forceWorld, dt / mass);
-  state.position.addScaledVector(state.velocity, dt);
+  if (gravity) {
+    const thrust = _thrustAccel.copy(forceWorld).divideScalar(mass);
+    integratePoint(state, (t, p, out) => gravity.field(t, p, out).add(thrust), gravity.t0, dt);
+  } else {
+    state.velocity.addScaledVector(forceWorld, dt / mass);
+    state.position.addScaledVector(state.velocity, dt);
+  }
 
   const w0 = state.angularVelocity;
   angularAcceleration(w0, torqueBody, inertia, _k1);

@@ -22,13 +22,39 @@ import {
  * Flight assist (FA, a game assist, D-041/D-044): when on, sideways and
  * up/down drift is cancelled with the RCS, and with the throttle at 0 and no
  * forward/back input the ship brakes to a stop with the retro or main engine.
+ * In orbit "stop" means relative to the nearby target (Stage 3); far from any
+ * target FA leaves the orbit alone.
+ *
+ * Cruise (D-045): letting go of forward/back translation holds the current
+ * forward speed, so the pilot can coast toward a target; throttle cut (or
+ * slowing to almost 0 with the rocker) stops; pulling the main or retro
+ * engine throttle back to 0 also stops.
  */
 export interface FlightComputer {
   mode: AssistMode;
   /** Orientation being held in hold-attitude mode; null until captured. */
   holdTarget: Quaternion | null;
-  /** Flight assist: drift cancelling and automatic braking. */
+  /** Flight assist: drift cancelling, cruise, and automatic braking. */
   fa: boolean;
+  /**
+   * Cruise (D-045): forward speed FA holds relative to the reference (m/s),
+   * captured when the pilot lets go of forward/back translation; 0 = stop;
+   * null = not set yet.
+   */
+  cruise: number | null;
+  /** The main or retro engine was driving: when the throttle returns to 0, FA stops the ship. */
+  stopAfterThrottle: boolean;
+}
+
+/**
+ * Frames of reference for the assists (Stage 3). Without a context the ship's
+ * own inertial velocity is used for both (empty-space flight).
+ */
+export interface FlightContext {
+  /** Velocity relative to the body being orbited: prograde/retrograde follow it. */
+  orbitalVelocity: Vector3;
+  /** Velocity FA matches (the nearby target's), or null for no translational FA (far from targets). */
+  faReference: Vector3 | null;
 }
 
 export interface FlightCommands {
@@ -56,8 +82,17 @@ const FA_RCS_SPEED = 0.3;
 const FA_DEADBAND = 0.005;
 
 export function createFlightComputer(mode: AssistMode = 'off', fa = true): FlightComputer {
-  return { mode, holdTarget: null, fa };
+  return { mode, holdTarget: null, fa, cruise: null, stopAfterThrottle: false };
 }
+
+/** Throttle cut / stop: FA brings the ship to rest relative to its reference (D-045). */
+export function commandStop(fc: FlightComputer): void {
+  fc.cruise = 0;
+  fc.stopAfterThrottle = false;
+}
+
+/** Cruise speeds below this are treated as a stop (m/s). */
+const CRUISE_MIN = 0.05;
 
 export function setAssistMode(fc: FlightComputer, mode: AssistMode): void {
   fc.mode = mode;
@@ -80,6 +115,8 @@ const _nose = new Vector3();
 const _direction = new Vector3();
 const _vBody = new Vector3();
 const _inverse = new Quaternion();
+const _relative = new Vector3();
+const ZERO = new Vector3();
 
 /** Body-frame rotation vector (axis × angle, rad) from the current orientation to `target`. */
 function attitudeError(current: Quaternion, target: Quaternion, out: Vector3): Vector3 {
@@ -103,37 +140,57 @@ export function computeCommands(
   ship: Ship,
   controls: ControlState,
   out: FlightCommands,
+  context?: FlightContext,
 ): FlightCommands {
   const { rcs, engines } = out;
+  const orbitalVelocity = context ? context.orbitalVelocity : ship.body.velocity;
+  const faReference = context ? context.faReference : ZERO;
   const body = ship.body;
   pilotTranslationToBody(controls, rcs.translation);
   engines.main = controls.reverse ? 0 : controls.throttle;
   engines.retro = controls.reverse ? controls.throttle : 0;
 
-  computeRotation(fc, ship, controls, rcs.rotation);
+  computeRotation(fc, ship, controls, orbitalVelocity, rcs.rotation);
 
-  if (fc.fa) {
+  if (fc.fa && faReference) {
     const mass = shipMass(ship);
     const rcsAccel = ship.config.rcs.force / mass;
-    _vBody.copy(body.velocity).applyQuaternion(_inverse.copy(body.orientation).invert());
+    _relative.subVectors(body.velocity, faReference);
+    _vBody.copy(_relative).applyQuaternion(_inverse.copy(body.orientation).invert());
     const cancel = (v: number) =>
       Math.abs(v) < FA_DEADBAND ? 0 : clampUnit(-v / (FA_DRIFT_RESPONSE * rcsAccel));
 
     if (Math.abs(controls.right) < INPUT_THRESHOLD) rcs.translation.x = cancel(_vBody.x);
     if (Math.abs(controls.up) < INPUT_THRESHOLD) rcs.translation.y = cancel(_vBody.y);
 
-    if (controls.throttle === 0 && Math.abs(controls.forward) < INPUT_THRESHOLD) {
-      const forwardSpeed = -_vBody.z;
-      if (forwardSpeed > FA_RCS_SPEED) {
+    const forwardSpeed = -_vBody.z;
+    if (Math.abs(controls.forward) >= INPUT_THRESHOLD) {
+      // Pilot is setting the speed with RCS: capture it as the cruise speed on release.
+      fc.cruise = null;
+    } else if (controls.throttle > 0) {
+      // Engines are driving; pulling the throttle back to 0 afterwards stops the ship.
+      fc.cruise = null;
+      fc.stopAfterThrottle = true;
+    } else {
+      if (fc.cruise === null) {
+        fc.cruise = fc.stopAfterThrottle || Math.abs(forwardSpeed) < CRUISE_MIN ? 0 : forwardSpeed;
+        fc.stopAfterThrottle = false;
+      }
+      // Hold the cruise speed: engines for big differences, RCS for the fine part.
+      const excess = forwardSpeed - fc.cruise;
+      if (excess > FA_RCS_SPEED) {
         const a = ship.config.retroEngine.thrust / mass;
-        engines.retro = Math.min(1, forwardSpeed / (FA_BRAKE_RESPONSE * a));
-      } else if (forwardSpeed < -FA_RCS_SPEED) {
+        engines.retro = Math.min(1, excess / (FA_BRAKE_RESPONSE * a));
+      } else if (excess < -FA_RCS_SPEED) {
         const a = ship.config.mainEngine.thrust / mass;
-        engines.main = Math.min(1, -forwardSpeed / (FA_BRAKE_RESPONSE * a));
+        engines.main = Math.min(1, -excess / (FA_BRAKE_RESPONSE * a));
       } else {
-        rcs.translation.z = cancel(_vBody.z);
+        rcs.translation.z = cancel(-excess);
       }
     }
+  } else {
+    fc.cruise = null;
+    fc.stopAfterThrottle = false;
   }
   return out;
 }
@@ -142,6 +199,7 @@ function computeRotation(
   fc: FlightComputer,
   ship: Ship,
   controls: ControlState,
+  orbitalVelocity: Vector3,
   out: Vector3,
 ): void {
   const pilot = pilotRotationToBody(controls, _pilot);
@@ -158,9 +216,9 @@ function computeRotation(
 
   // Which orientation to aim for, if any.
   let target: Quaternion | null = null;
-  const speed = body.velocity.length();
+  const speed = orbitalVelocity.length();
   if ((fc.mode === 'prograde' || fc.mode === 'retrograde') && speed > MIN_DIRECTION_SPEED) {
-    _direction.copy(body.velocity).divideScalar(fc.mode === 'prograde' ? speed : -speed);
+    _direction.copy(orbitalVelocity).divideScalar(fc.mode === 'prograde' ? speed : -speed);
     target = noseAlong(body.orientation, _direction, _target);
     fc.holdTarget = null;
   } else if (fc.mode !== 'kill-rotation') {

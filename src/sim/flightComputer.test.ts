@@ -1,7 +1,13 @@
 import { Quaternion, Vector3 } from 'three/webgpu';
 import { describe, expect, it } from 'vitest';
 import { createControlState, type AssistMode, type ControlState } from './controls';
-import { computeCommands, createFlightCommands, createFlightComputer } from './flightComputer';
+import {
+  commandStop,
+  computeCommands,
+  createFlightCommands,
+  createFlightComputer,
+  type FlightComputer,
+} from './flightComputer';
 import { createShip, stepShip, type Ship } from './ship';
 import { placeholderSpacecraft } from './ships/placeholderSpacecraft';
 
@@ -13,6 +19,7 @@ function fly(
   setup: (ship: Ship, controls: ControlState) => void,
   mode: AssistMode,
   fa = false,
+  each?: (step: number, ship: Ship, controls: ControlState, fc: FlightComputer) => void,
 ) {
   const ship = createShip(placeholderSpacecraft);
   const controls = createControlState();
@@ -21,6 +28,7 @@ function fly(
   const commands = createFlightCommands();
   const start = ship.body.orientation.clone();
   for (let i = 0; i < seconds * 120; i++) {
+    each?.(i, ship, controls, fc);
     computeCommands(fc, ship, controls, commands);
     stepShip(ship, commands.engines, commands.rcs, DT);
   }
@@ -120,13 +128,60 @@ describe('flight assist', () => {
     expect(ship.body.velocity.length()).toBeLessThan(0.01);
   });
 
-  it('brakes to a stop from 50 m/s forward with the throttle at 0', () => {
-    const { ship } = fly(90, (s) => s.body.velocity.set(0, 0, -50), 'off', true);
+  const stopAtStart = (step: number, _s: Ship, _c: ControlState, fc: FlightComputer) => {
+    if (step === 0) commandStop(fc);
+  };
+
+  it('brakes to a stop from 50 m/s forward after a stop command (throttle cut)', () => {
+    const { ship } = fly(90, (s) => s.body.velocity.set(0, 0, -50), 'off', true, stopAtStart);
     expect(ship.body.velocity.length()).toBeLessThan(0.01);
   });
 
-  it('brakes to a stop from 5 m/s backward', () => {
-    const { ship } = fly(60, (s) => s.body.velocity.set(0, 0, 5), 'off', true);
+  it('brakes to a stop from 5 m/s backward after a stop command', () => {
+    const { ship } = fly(60, (s) => s.body.velocity.set(0, 0, 5), 'off', true, stopAtStart);
+    expect(ship.body.velocity.length()).toBeLessThan(0.01);
+  });
+
+  it('cruises: letting go of the rocker holds the forward speed it reached', () => {
+    const { ship } = fly(
+      70,
+      () => undefined,
+      'off',
+      true,
+      (step, _s, c) => {
+        c.forward = step < 120 * 10 ? 1 : 0; // 10 s of RCS forward, then let go
+      },
+    );
+    const speed = -ship.body.velocity.z;
+    expect(speed).toBeGreaterThan(0.9); // about 1.1 m/s after 10 s at 0.11 m/s²
+    expect(speed).toBeLessThan(1.3);
+    expect(Math.hypot(ship.body.velocity.x, ship.body.velocity.y)).toBeLessThan(0.01);
+  });
+
+  it('stops when the rocker brings the speed down to almost zero', () => {
+    const { ship } = fly(
+      60,
+      (s) => s.body.velocity.set(0, 0, -0.5),
+      'off',
+      true,
+      (step, s, c) => {
+        // Pull back until nearly stopped, then let go.
+        c.forward = step < 120 * 30 && -s.body.velocity.z > 0.03 ? -1 : 0;
+      },
+    );
+    expect(ship.body.velocity.length()).toBeLessThan(0.01);
+  });
+
+  it('stops after the engine throttle returns to 0', () => {
+    const { ship } = fly(
+      90,
+      () => undefined,
+      'off',
+      true,
+      (step, _s, c) => {
+        c.throttle = step < 120 * 3 ? 1 : 0; // 3 s of main engine, then throttle back
+      },
+    );
     expect(ship.body.velocity.length()).toBeLessThan(0.01);
   });
 
@@ -146,6 +201,41 @@ describe('flight assist', () => {
   it('never overrides translation input', () => {
     const { ship } = fly(5, (_s, c) => (c.right = 1), 'off', true);
     expect(ship.body.velocity.x).toBeGreaterThan(0.3);
+  });
+
+  it('matches a moving reference (the target) instead of stopping dead', () => {
+    const ship = createShip(placeholderSpacecraft);
+    ship.body.velocity.set(7700, 3, 0); // orbiting at 7.7 km/s, drifting 3 m/s up
+    const target = new Vector3(7700, 0, 0);
+    ship.body.orientation.setFromAxisAngle(new Vector3(0, 1, 0), -Math.PI / 2); // nose along +x
+    const fc = createFlightComputer('off', true);
+    const commands = createFlightCommands();
+    const controls = createControlState();
+    for (let i = 0; i < 120 * 40; i++) {
+      computeCommands(fc, ship, controls, commands, {
+        orbitalVelocity: ship.body.velocity,
+        faReference: target,
+      });
+      stepShip(ship, commands.engines, commands.rcs, DT);
+    }
+    expect(ship.body.velocity.distanceTo(target)).toBeLessThan(0.01);
+  });
+
+  it('leaves the orbit alone with no nearby target', () => {
+    const ship = createShip(placeholderSpacecraft);
+    ship.body.velocity.set(0, 0, -7700);
+    const commands = computeCommands(
+      createFlightComputer('off', true),
+      ship,
+      createControlState(),
+      createFlightCommands(),
+      {
+        orbitalVelocity: ship.body.velocity,
+        faReference: null,
+      },
+    );
+    expect(commands.engines).toEqual({ main: 0, retro: 0 });
+    expect(commands.rcs.translation.toArray()).toEqual([0, 0, -0]);
   });
 
   it('changes nothing when off', () => {

@@ -1,5 +1,6 @@
 import { Vector3 } from 'three/webgpu';
 import type { ControlState } from './controls';
+import type { AccelerationField } from '../world/orbit';
 import { createBodyState, integrateBody, type BodyState, type Inertia } from './rigidBody';
 
 /** Standard gravity, for converting specific impulse to exhaust velocity. */
@@ -129,7 +130,13 @@ export function engineAcceleration(ship: Ship, engine: 'main' | 'retro'): number
  * Applies engine and RCS commands for `dt` seconds: consumes propellant,
  * then integrates the body using the mass at the middle of the step.
  */
-export function stepShip(ship: Ship, engines: EngineCommand, rcs: RcsCommand, dt: number): void {
+export function stepShip(
+  ship: Ship,
+  engines: EngineCommand,
+  rcs: RcsCommand,
+  dt: number,
+  gravity?: { field: AccelerationField; t0: number },
+): void {
   const { mainEngine, retroEngine, rcs: rcsConfig } = ship.config;
 
   // Main and retro engines share the main tank: mass flow = thrust / (Isp·g0).
@@ -181,5 +188,13 @@ export function stepShip(ship: Ship, engines: EngineCommand, rcs: RcsCommand, dt
     rot.z * rcsConfig.torque.z * rcsFraction,
   );
 
-  integrateBody(ship.body, _force, _torque, midMass, shipInertia(ship.config, midMass), dt);
+  integrateBody(
+    ship.body,
+    _force,
+    _torque,
+    midMass,
+    shipInertia(ship.config, midMass),
+    dt,
+    gravity,
+  );
 }
