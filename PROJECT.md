@@ -42,7 +42,7 @@ Decided:
 - **Renderer:** Three.js WebGPU renderer with automatic WebGL2 fallback (D-012)
 - **HTTPS:** certificates from a local certificate authority made with mkcert (D-013)
 
-Still open: collision library (D-017).
+- **Collisions:** custom contact checks behind a replaceable interface (D-017)
 
 ## Hardware Baseline
 
@@ -90,15 +90,14 @@ Items discussed but not yet decided. Each entry records when it was raised, who 
 - **Context:** Some spacedromes may be on planets with atmospheres (e.g. Earth, Mars). With a realistic flight model (D-004), atmosphere means drag, aerodynamic forces, and re-entry heating during landing. Ignoring atmosphere makes landing on those planets unrealistic; airless bodies (e.g. the Moon) avoid the issue entirely. Depends on D-005.
 - **Action expected (Panos):** Choose whether atmospheres affect flight, or whether the first spacedromes are on airless bodies only.
 
+## Resolved Decisions
+
 ### D-017: Collision library
 
 - **Raised:** 2026-10-14
+- **Decided:** 2026-10-14
 - **Owner:** Panos
-- **Status:** Open (decide during the flight core phase)
-- **Context:** Orbital mechanics and flight physics will be custom code. Open question: whether a collision library (e.g. Rapier) is needed for landing gear and docking contact, or whether simple custom contact checks are enough.
-- **Action expected (Panos):** Decide when the flight core is built.
-
-## Resolved Decisions
+- **Outcome:** Custom contact checks, no physics library for now: landing gear as points/rays against the pad and terrain, the hull as simple shapes, and docking as a capture check (position, angle, and closing speed within tolerances, then latches engage). Contact code sits behind its own interface so it can be switched to Rapier later if landings and crashes need richer behaviour (tipping, bouncing, scraping), without touching the orbital physics.
 
 ### D-016: Time warp in normal flight
 
@@ -221,7 +220,7 @@ Items discussed but not yet decided. Each entry records when it was raised, who 
 - [x] Initialize repository
 - [x] Define purpose (2026-10-14)
 - [x] Choose universe and scale: real solar system (2026-10-14)
-- [ ] Settle remaining decisions (D-017; D-014 deferred)
+- [ ] Settle remaining decisions (D-014 deferred)
 - [ ] Choose tech stack
 - [ ] First working version
 
