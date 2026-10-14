@@ -37,6 +37,16 @@ Copy only `rootCA.pem` to other machines. **Never share `certs/ca/rootCA-key.pem
 
 If you add a hostname or the machine's IP changes, update `CERT_HOSTS` in `.env` and run `make certs` again. The authority is reused, so browsers don't need to import it again.
 
+### Enable WebGPU in Chromium on Linux
+
+Chromium on Linux may not offer WebGPU to pages until Vulkan is turned on; the sim then falls back to WebGL2 (the overlay's first line shows which one is active). In `chrome://flags`, set these to **Enabled** and relaunch:
+
+- **Vulkan** (`#enable-vulkan`)
+- **Default ANGLE Vulkan** (`#default-angle-vulkan`)
+- **Vulkan from ANGLE** (`#vulkan-from-angle`)
+
+`chrome://gpu` should then show **Vulkan: Enabled** and **WebGPU: Hardware accelerated**. If the browser misbehaves, use **Reset all** in `chrome://flags`. Tested with Chromium 155 on Debian 13 with an AMD Radeon integrated GPU; flag names may change in future versions.
+
 ## Commands
 
 | Command | What it does |

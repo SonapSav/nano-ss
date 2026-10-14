@@ -63,7 +63,7 @@ Dev machine environment (from `chrome://gpu`, 2026-10-14):
 - Debian 13, kernel 6.12, KDE Plasma on Wayland
 - Chromium 155 (Debian package)
 - Mesa 25.0.7 graphics driver (RADV Vulkan / radeonsi OpenGL)
-- WebGPU: hardware accelerated through the Vulkan backend (`AMD Radeon Graphics (RADV RENOIR)`), with `shader-f16`, `timestamp-query`, and `subgroups` available
+- WebGPU: works through the Vulkan backend (`AMD Radeon Graphics (RADV RENOIR)`), with `shader-f16`, `timestamp-query`, and `subgroups`, once three Chromium Vulkan flags are enabled (D-034); without them pages get no adapter and the sim runs on WebGL2
 - Three 1080p monitors (the sim uses at most two; D-011)
 
 Rules:
@@ -100,9 +100,22 @@ nano-ss/
 
 Items discussed but not yet decided. Each entry records when it was raised, who owns the decision, and the actions expected from them. When an item is decided, move it to **Resolved Decisions** with the outcome and date.
 
-_None currently._
+### D-035: Frame rate on high-refresh monitors
+
+- **Raised:** 2026-10-14
+- **Owner:** Panos
+- **Status:** Open
+- **Context:** The target is 1080p at 60 fps (D-010), but the sim follows the display's refresh rate and ran at 144 fps on the dev machine's monitor. Options: (a) follow the display refresh rate (smoothest, but the integrated GPU and the 15 W CPU work up to 2.4x harder, so more heat and earlier throttling); (b) cap at 60 fps by default, with a setting to uncap; (c) a setting with choices (60 / display rate). Physics will run on a fixed time step either way, so the frame rate does not change the simulation. Recommendation: (c), defaulting to 60.
+- **Action expected (Panos):** Choose (a), (b), or (c).
 
 ## Resolved Decisions
+
+### D-034: WebGPU unavailable in the page on the dev machine
+
+- **Raised:** 2026-10-14
+- **Decided:** 2026-10-14
+- **Owner:** Panos
+- **Outcome:** Fixed by enabling three Chromium flags: **Vulkan** (`#enable-vulkan`), **Default ANGLE Vulkan** (`#default-angle-vulkan`), and **Vulkan from ANGLE** (`#vulkan-from-angle`). After relaunch, `chrome://gpu` shows Vulkan enabled and WebGPU hardware accelerated, and the sim runs on **WebGPU** (144 fps at the monitor's refresh rate, about 6.9 ms per frame on the placeholder scene, 10 workers). "Force enable WebGPU interop" was not needed and stays off. Before the fix, both `requestAdapter()` and `requestAdapter({ featureLevel: 'compatibility' })` returned `null` in Chromium 155.0.8059.39 (Debian 13), with Vulkan disabled. Every Linux machine that opens the sim needs the same flags (documented in `README.md`); without them the sim still runs on the WebGL2 fallback. Flag names may change in future Chromium versions.
 
 ### D-030: Development environment
 
@@ -237,7 +250,7 @@ _None currently._
 - **Raised:** 2026-10-14
 - **Decided:** 2026-10-14
 - **Owner:** Panos
-- **Outcome:** Three.js WebGPU renderer with automatic WebGL2 fallback. WebGPU is confirmed on the dev machine; the fallback covers Windows and other machines. The collision library question continues in D-017.
+- **Outcome:** Three.js WebGPU renderer with automatic WebGL2 fallback. The fallback covers machines without WebGPU; the dev machine needs three Chromium Vulkan flags for WebGPU (D-034). The collision library question continues in D-017.
 
 ### D-013: HTTPS certificate for local network access
 
@@ -304,7 +317,7 @@ _None currently._
 - **Raised:** 2026-10-14
 - **Decided:** 2026-10-14
 - **Owner:** Panos
-- **Outcome:** Target is 1080p at 60 fps on the dev machine (AMD Ryzen 5 5500U, Radeon Vega 7 integrated). The render resolution scales down automatically when the frame rate drops, with 30 fps as the floor in the heaviest scenes. WebGPU is confirmed hardware accelerated in Chromium 155 on this machine via the Vulkan backend.
+- **Outcome:** Target is 1080p at 60 fps on the dev machine (AMD Ryzen 5 5500U, Radeon Vega 7 integrated). The render resolution scales down automatically when the frame rate drops, with 30 fps as the floor in the heaviest scenes. WebGPU works in Chromium 155 on this machine once three Vulkan flags are enabled (D-034).
 
 ### D-004: Flight model realism
 
@@ -345,7 +358,7 @@ _None currently._
 
 Planning (done 2026-10-14): repository, purpose, scope, tech stack, assets, and backups (D-001 to D-033).
 
-- [ ] **Stage 0: Setup.** Vite, TypeScript, and Three.js (WebGPU with WebGL2 fallback); Docker for all tooling; nginx serving HTTPS on 8787 with mkcert certificates; lint, format, type check, tests, and CI; placeholder scene with GPU report and worker budget. (built 2026-10-14; browser check on Chromium pending)
+- [x] **Stage 0: Setup.** Vite, TypeScript, and Three.js (WebGPU with WebGL2 fallback); Docker for all tooling; nginx serving HTTPS on 8787 with mkcert certificates; lint, format, type check, tests, and CI; placeholder scene with GPU report and worker budget. (2026-10-14; verified on WebGPU in Chromium, D-034)
 - [ ] **Stage 1: Flight core.** Realistic 6-axis flight in empty space, chase and nose cameras, basic heads-up display, keyboard controls.
 - [ ] **Stage 2: Input.** HOTAS X support tuned for Linux Chromium, rebindable controls, calibration and dead zones.
 - [ ] **Stage 3: Earth and Moon.** Real orbits from NASA/JPL data, handling of huge distances (floating origin, logarithmic depth), gravity, two-level time warp.
