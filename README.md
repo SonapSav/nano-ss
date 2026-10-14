@@ -1,6 +1,6 @@
 # nano-ss
 
-> Project description coming soon.
+> Project description coming soon. See [PROJECT.md](PROJECT.md) for scope and roadmap.
 
 ## Getting Started
 
