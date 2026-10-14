@@ -2,7 +2,7 @@
 
 A realistic space flight game set in the real solar system at real scale, built with Three.js. Fly a spacecraft between planets and moons with a hyperdrive, land at spaceports on airless worlds, and dock with other spacecraft, using the keyboard or a Thrustmaster T.Flight HOTAS X. See [PROJECT.md](PROJECT.md) for scope, decisions, and roadmap.
 
-**Status:** Stage 2b (game assists): realistic 6-axis flight in empty space with keyboard and Thrustmaster T.Flight HOTAS X, retro engines, flight assist, and attitude helpers.
+**Status:** Stage 3a (orbits): you start in a real 400 km orbit around Earth, with the real Moon and Sun positions (NASA JPL data) and the real date and time. Time warp and real Earth and Moon visuals come next.
 
 ## Requirements
 
@@ -77,7 +77,7 @@ Each target is a one-line `docker compose` call in the [Makefile](Makefile).
 | J / L | Translate left / right (RCS) |
 | H / N | Translate forward / back (RCS) |
 | Shift / Ctrl | Throttle up / down |
-| Z / X | Full throttle / cut |
+| Z / X | Full throttle / cut (X also stops you near a target) |
 | B | Reverse: the throttle drives the nose retro engines (brake while facing forward) |
 | Y | Flight assist (FA) on/off |
 | T | Rotation assist: off, kill rotation, hold attitude |
@@ -90,6 +90,12 @@ Each target is a one-line `docker compose` call in the [Makefile](Makefile).
 | Esc | Pause and settings (frame rate, motion dust, controls) |
 
 Physics is Newtonian: a spin or a speed keeps going until thrusters stop it. **Flight assist (FA)** is on by default: it cancels sideways drift and, with the throttle at 0, brakes the ship to a stop. Press Y for pure Newtonian flight.
+
+### Flying in orbit
+
+- **Speeding up raises the other side of your orbit; slowing down lowers it.** A prograde burn (G, then throttle) raises the apoapsis half an orbit later; a retrograde burn (V) lowers the periapsis. The ORBIT lines show both and when you reach them.
+- **Below 100 km over Earth you burn up** (there is no atmospheric flight); R resets to the start orbit.
+- **Reaching the practice target (◇, 2 km ahead at the start):** point at it, tap the rocker (or H) until closing speed is about 2 m/s, and let go: flight assist **cruises** at that speed and cancels drift. Within about 200 m slow down with the rocker back (or N); at almost 0, or with **X**, FA stops you. Near the target, VEL and STOP are measured in the target's orbiting frame.
 
 ### Thrustmaster T.Flight HOTAS X
 

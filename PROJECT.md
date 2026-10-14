@@ -85,15 +85,21 @@ nano-ss/
 ├── PROJECT.md        # This file: purpose, scope, decisions, roadmap
 ├── CLAUDE.md         # Guidance for Claude Code in this repo
 ├── LICENSE           # MIT
+├── ASSETS.md         # Third-party data and assets: source, credit, licence
 ├── Makefile          # All commands, each a docker compose call
 ├── compose.yaml      # Services: dev (tooling), web (nginx on 8787), certs (mkcert)
 ├── .env.example      # CERT_HOSTS; copied to the git-ignored .env
 ├── docker/           # Dockerfiles and nginx config
+├── scripts/scenery/  # Downloads and builds game data (make scenery)
+├── public/data/      # Built game data (JPL ephemeris tables), committed
 ├── .github/workflows # CI: make check + production image build
 ├── index.html
 ├── src/
 │   ├── main.ts       # Startup: renderer, scene, loop, overlay
 │   ├── platform/     # GPU report, worker budget (with tests)
+│   ├── world/        # Clock, ephemeris, bodies, gravity, orbits, targets
+│   ├── sim/          # Ship physics, flight computer, fixed-step loop
+│   ├── input/        # Keyboard, HOTAS, bindings, storage
 │   ├── render/       # Renderer setup, placeholder scene
 │   └── ui/           # Stats overlay
 └── certs/            # Local CA and certificate (git-ignored)
@@ -106,6 +112,26 @@ Items discussed but not yet decided. Each entry records when it was raised, who 
 _None currently._
 
 ## Resolved Decisions
+
+### D-047: Stage 3 world model
+
+- **Raised:** 2026-10-14
+- **Decided:** 2026-10-14
+- **Owner:** Panos
+- **Outcome:** Chosen when planning Stage 3: **start in a 400 km circular low Earth orbit** at 51.6° (ISS-like), on the sunlit side of the orbit, with the practice target co-orbiting 2 km ahead; **the world starts at the real current date and time**; **orbit line and map view** included in Stage 3 (built in 3c). Built in 3a:
+  - **Frame:** Earth-centred inertial, ICRF (J2000 equatorial), metres, 64-bit; Earth's spin axis is the frame's Z axis.
+  - **Moon and Sun positions from NASA JPL Horizons tables** (2020 to 2040, Moon every 12 h, Sun daily, about 1 MB in `public/data/`, refreshed with `make scenery`), interpolated to well under 1 km, instead of the analytic Meeus series first planned: real JPL data, and nothing transcribed from memory. Tested against independent Horizons points.
+  - **Gravity:** Earth and Moon (with the indirect term for the Earth-centred frame); the Sun's pull is left out (tiny tidal effect in cislunar space). Translation integrates with RK4 at the 120 Hz step.
+  - **Hazards:** below 100 km over Earth the ship burns up (no atmospheric flight, D-044); touching the Moon is a crash until Stage 5. R resets to the start orbit.
+  - **Rendering:** reversed depth buffer (precision from 0.1 m to the Sun without a logarithmic buffer's cost); Earth and the Moon as plain lit spheres until 3c; sunlight from the real Sun direction; Earth's shadow switches sunlight off; navigation lights and hull floodlights keep the ship visible in eclipse.
+  - **Assist frames:** prograde/retrograde follow the velocity relative to the body being orbited; within 5 km of the target, FA, VEL, closing speed, and STOP use the **target's orbiting frame**, in which a ship on the same orbit is at rest (otherwise two objects 2 km apart on one orbit differ by about 2.3 m/s and FA fired constantly).
+
+### D-045: Cruise near targets
+
+- **Raised:** 2026-10-14
+- **Decided:** 2026-10-14
+- **Owner:** Panos
+- **Outcome:** Near a target, FA's "brake at throttle 0" made coasting toward it impossible. Now FA **cruises**: letting go of forward/back translation (rocker, H/N) holds the forward speed reached; slowing to almost 0 with the rocker, or **throttle cut (X)**, stops the ship relative to the target; pulling the main or retro engine throttle back to 0 also stops it. Sideways and up/down drift are still cancelled. The HUD shows CRUISE with the held speed.
 
 ### D-042: Forward-facing braking engine
 
@@ -435,7 +461,7 @@ Planning (done 2026-10-14): repository, purpose, scope, tech stack, assets, and 
 - [x] **Stage 1: Flight core.** Realistic 6-axis flight in empty space on a fixed physics time step, chase and nose cameras, basic heads-up display, keyboard controls, frame rate setting (60 fps default or display rate; D-035). (2026-10-14; D-036 to D-038)
 - [x] **Stage 2: Input.** HOTAS X support tuned for Linux Chromium, rebindable controls, calibration and dead zones. (2026-10-14; D-039, D-040)
 - [x] **Stage 2b: Game assists.** Retro engines (D-042); retrograde/prograde hold, drift-cancelling flight assist, edge arrows, time-to-stop hint (D-041); spacecraft-shaped greybox (D-043). (2026-10-14)
-- [ ] **Stage 3: Earth and Moon.** Real orbits from NASA/JPL data, handling of huge distances (floating origin, logarithmic depth), gravity, two-level time warp. Earth for orbits and views only (no landing, D-044).
+- [ ] **Stage 3: Earth and Moon.** Real orbits from NASA/JPL data, handling of huge distances, gravity, two-level time warp. Earth for orbits and views only (no landing, D-044). 3a orbits done 2026-10-14 (D-045, D-047); 3b time warp and 3c visuals (textures, real stars, orbit line, map view) to do.
 - [ ] **Stage 4: Hyperdrive.** Speed bands 0.1c to 100c, charge-up, gravity-well limits, arrival speed matching.
 - [ ] **Stage 5: Moon spaceports.** Landing pads on real lunar terrain, vertical landing on thrusters, contact checks, refuelling.
 - [ ] **Stage 6: Orbital stations.** Modular stations, docking with the capture check.
