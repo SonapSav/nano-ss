@@ -41,7 +41,9 @@ scenery: ## Download and build game data (ephemerides, stars, textures) into pub
 	$(RUN) node scripts/scenery/ephemeris.ts
 	$(RUN) node scripts/scenery/stars.ts
 	$(COMPOSE) run --rm gdal scripts/scenery/moon-sources.sh
+	$(COMPOSE) run --rm gdal scripts/scenery/moon-sites.sh
 	$(RUN) node scripts/scenery/textures.ts
+	$(RUN) node scripts/scenery/sites.ts
 
 build: ## Build the production image
 	$(COMPOSE) build web

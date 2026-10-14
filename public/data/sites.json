@@ -1,0 +1,26 @@
+[
+  {
+    "name": "tranquility",
+    "title": "Tranquility Base",
+    "centerLat": 0.67416,
+    "centerLon": 23.47314,
+    "size": 1000,
+    "halfExtent": 20000,
+    "ringSize": 200,
+    "ringHalfExtent": 200000,
+    "padX": 0,
+    "padY": 0
+  },
+  {
+    "name": "shackleton",
+    "title": "Shackleton Rim",
+    "centerLat": -89.67,
+    "centerLon": 129.78,
+    "size": 1000,
+    "halfExtent": 20000,
+    "ringSize": 200,
+    "ringHalfExtent": 200000,
+    "padX": 6400,
+    "padY": -8200
+  }
+]
