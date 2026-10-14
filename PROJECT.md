@@ -100,15 +100,16 @@ nano-ss/
 
 Items discussed but not yet decided. Each entry records when it was raised, who owns the decision, and the actions expected from them. When an item is decided, move it to **Resolved Decisions** with the outcome and date.
 
+_None currently._
+
+## Resolved Decisions
+
 ### D-035: Frame rate on high-refresh monitors
 
 - **Raised:** 2026-10-14
+- **Decided:** 2026-10-14
 - **Owner:** Panos
-- **Status:** Open
-- **Context:** The target is 1080p at 60 fps (D-010), but the sim follows the display's refresh rate and ran at 144 fps on the dev machine's monitor. Options: (a) follow the display refresh rate (smoothest, but the integrated GPU and the 15 W CPU work up to 2.4x harder, so more heat and earlier throttling); (b) cap at 60 fps by default, with a setting to uncap; (c) a setting with choices (60 / display rate). Physics will run on a fixed time step either way, so the frame rate does not change the simulation. Recommendation: (c), defaulting to 60.
-- **Action expected (Panos):** Choose (a), (b), or (c).
-
-## Resolved Decisions
+- **Outcome:** Option (c): a frame rate setting with two choices, **60 fps** (default) and **display refresh rate**. The default keeps the integrated GPU and the 15 W CPU cooler and avoids early throttling; the display rate is there for smoothness on high-refresh monitors (the dev machine's runs at 144 Hz). Physics runs on a fixed time step, so the setting never changes the simulation. Planned for Stage 1, together with the fixed physics step.
 
 ### D-034: WebGPU unavailable in the page on the dev machine
 
@@ -359,7 +360,7 @@ Items discussed but not yet decided. Each entry records when it was raised, who 
 Planning (done 2026-10-14): repository, purpose, scope, tech stack, assets, and backups (D-001 to D-033).
 
 - [x] **Stage 0: Setup.** Vite, TypeScript, and Three.js (WebGPU with WebGL2 fallback); Docker for all tooling; nginx serving HTTPS on 8787 with mkcert certificates; lint, format, type check, tests, and CI; placeholder scene with GPU report and worker budget. (2026-10-14; verified on WebGPU in Chromium, D-034)
-- [ ] **Stage 1: Flight core.** Realistic 6-axis flight in empty space, chase and nose cameras, basic heads-up display, keyboard controls.
+- [ ] **Stage 1: Flight core.** Realistic 6-axis flight in empty space on a fixed physics time step, chase and nose cameras, basic heads-up display, keyboard controls, frame rate setting (60 fps default or display rate; D-035).
 - [ ] **Stage 2: Input.** HOTAS X support tuned for Linux Chromium, rebindable controls, calibration and dead zones.
 - [ ] **Stage 3: Earth and Moon.** Real orbits from NASA/JPL data, handling of huge distances (floating origin, logarithmic depth), gravity, two-level time warp.
 - [ ] **Stage 4: Hyperdrive.** Speed bands 0.1c to 100c, charge-up, gravity-well limits, arrival speed matching.
