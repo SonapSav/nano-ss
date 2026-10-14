@@ -2,7 +2,7 @@
 
 A realistic space flight simulator set in the real solar system at real scale, built with Three.js. Fly a spaceplane between planets with a hyperdrive, land at spacedromes, and dock with other spacecraft, using the keyboard or a Thrustmaster T.Flight HOTAS X. See [PROJECT.md](PROJECT.md) for scope, decisions, and roadmap.
 
-**Status:** Stage 0 (project setup). The app currently shows a placeholder scene that proves the WebGPU render pipeline.
+**Status:** Stage 1 (flight core): realistic 6-axis flight in empty space with keyboard controls. HOTAS support comes in Stage 2.
 
 ## Requirements
 
@@ -65,6 +65,27 @@ Chromium on Linux may not offer WebGPU to pages until Vulkan is turned on; the s
 | `make shell` | Open a shell in the dev container |
 
 Each target is a one-line `docker compose` call in the [Makefile](Makefile).
+
+## Flight controls
+
+| Keys | Action |
+|---|---|
+| W / S | Pitch down / up |
+| A / D | Yaw left / right |
+| Q / E | Roll left / right |
+| I / K | Translate up / down (RCS) |
+| J / L | Translate left / right (RCS) |
+| H / N | Translate forward / back (RCS) |
+| Shift / Ctrl | Throttle up / down |
+| Z / X | Full throttle / cut |
+| T | Assist: off, kill rotation, hold attitude |
+| C | Chase / nose camera |
+| Mouse drag, wheel | Orbit and zoom the chase camera |
+| F | Fullscreen (also lets the sim receive Ctrl+W, Ctrl+N, Ctrl+T) |
+| F3 | Performance overlay |
+| Esc | Pause and settings (frame rate: 60 fps or display refresh rate) |
+
+Rotation is realistic: a spin keeps going until thrusters stop it. Assist modes only manage rotation; nothing ever slows the ship down for you.
 
 ## Debug options
 

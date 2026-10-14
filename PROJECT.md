@@ -104,6 +104,27 @@ _None currently._
 
 ## Resolved Decisions
 
+### D-036: Keyboard layout
+
+- **Raised:** 2026-10-14
+- **Decided:** 2026-10-14
+- **Owner:** Panos
+- **Outcome:** KSP-style: W/S pitch, A/D yaw, Q/E roll; I/K, J/L, H/N RCS translation; Shift/Ctrl throttle, Z full, X cut; T cycles assist; C camera; F fullscreen; F3 performance overlay; Esc pause. Bindings are data (`src/input/bindings.ts`) so Stage 2 can make them rebindable. The browser keeps Ctrl+W, Ctrl+N, and Ctrl+T for itself outside fullscreen, so fullscreen (F) uses keyboard lock, and the production build asks before leaving the page. Rejected: Elite-style, Orbiter-style numpad.
+
+### D-037: Placeholder spaceplane size and numbers
+
+- **Raised:** 2026-10-14
+- **Decided:** 2026-10-14
+- **Owner:** Panos
+- **Outcome:** Dream Chaser class: about 9 m long, 7 m span, 10 t dry, 8 t main propellant, 300 kg RCS propellant. Main engine 120 kN at Isp 340 s (about 0.7 g full, 1.2 g nearly empty, about 1.9 km/s delta-v); RCS 4 kN per translation axis, torques for about 3°/s² pitch/yaw and 6°/s² roll. Inertia from a box estimate that changes as propellant burns. All numbers are placeholders in `src/sim/ships/placeholderSpaceplane.ts`, tunable when the real design exists. Rejected: 20 m class, Space Shuttle class.
+
+### D-038: Physics time step
+
+- **Raised:** 2026-10-14
+- **Decided:** 2026-10-14
+- **Owner:** Panos
+- **Outcome:** Fixed 120 Hz physics step with render interpolation, independent of the frame rate setting (D-035); verified identical results at 60 and 144 fps frame timings. Rotation uses Euler's equations (RK4), so torque-free tumbling is physical. Assist modes (Off, Kill rotation, Hold attitude) act on rotation only, through the RCS; translation is never automated (D-004).
+
 ### D-035: Frame rate on high-refresh monitors
 
 - **Raised:** 2026-10-14
@@ -360,7 +381,7 @@ _None currently._
 Planning (done 2026-10-14): repository, purpose, scope, tech stack, assets, and backups (D-001 to D-033).
 
 - [x] **Stage 0: Setup.** Vite, TypeScript, and Three.js (WebGPU with WebGL2 fallback); Docker for all tooling; nginx serving HTTPS on 8787 with mkcert certificates; lint, format, type check, tests, and CI; placeholder scene with GPU report and worker budget. (2026-10-14; verified on WebGPU in Chromium, D-034)
-- [ ] **Stage 1: Flight core.** Realistic 6-axis flight in empty space on a fixed physics time step, chase and nose cameras, basic heads-up display, keyboard controls, frame rate setting (60 fps default or display rate; D-035).
+- [x] **Stage 1: Flight core.** Realistic 6-axis flight in empty space on a fixed physics time step, chase and nose cameras, basic heads-up display, keyboard controls, frame rate setting (60 fps default or display rate; D-035). (2026-10-14; D-036 to D-038)
 - [ ] **Stage 2: Input.** HOTAS X support tuned for Linux Chromium, rebindable controls, calibration and dead zones.
 - [ ] **Stage 3: Earth and Moon.** Real orbits from NASA/JPL data, handling of huge distances (floating origin, logarithmic depth), gravity, two-level time warp.
 - [ ] **Stage 4: Hyperdrive.** Speed bands 0.1c to 100c, charge-up, gravity-well limits, arrival speed matching.
