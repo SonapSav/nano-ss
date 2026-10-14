@@ -37,8 +37,11 @@ test: ## Run unit tests
 format: ## Format the code with Prettier
 	$(RUN) pnpm format
 
-scenery: ## Download and build game data (ephemerides, textures) into public/
+scenery: ## Download and build game data (ephemerides, stars, textures) into public/
 	$(RUN) node scripts/scenery/ephemeris.ts
+	$(RUN) node scripts/scenery/stars.ts
+	$(COMPOSE) run --rm gdal scripts/scenery/moon-sources.sh
+	$(RUN) node scripts/scenery/textures.ts
 
 build: ## Build the production image
 	$(COMPOSE) build web

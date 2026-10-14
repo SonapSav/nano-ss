@@ -50,6 +50,16 @@ services:
     volumes:
       - ./certs:/certs
 
+  # One-off: GDAL reads reduced copies of large NASA datasets for `make scenery`.
+  gdal:
+    profiles: [tools]
+    image: ghcr.io/osgeo/gdal:ubuntu-small-3.11.4
+    user: *host-user
+    working_dir: /app
+    volumes:
+      - .:/app
+    entrypoint: ['sh']
+
 volumes:
   node_modules:
   pnpm-store:
