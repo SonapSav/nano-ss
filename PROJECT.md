@@ -125,6 +125,7 @@ _None currently._
   - **Edge arrows** at the screen border pointing to off-screen markers (⊕, ⊗, nose), since ⊗ is usually behind the ship.
   - **Time-to-stop hint** in the HUD: burn time needed to stop at full throttle with the main engine and with the retro engines, next to the remaining Δv.
   Raised because Panos could not find ⊗ and had to turn around to brake.
+  Confirmed 2026-10-14 when planning Stage 2b: FA cancels sideways and up/down drift always, and with the throttle at 0 and no forward/back input it brakes to a stop (retro engines when moving forward, main engine when moving backward, RCS for the last 0.3 m/s); **FA is on by default**, remembered between sessions. Attitude holds approach their target at a time-optimal rate (a 180° flip takes about 15 to 20 s without overshoot). Built and verified in Stage 2b.
 
 ### D-044: Realistic game, not a strict simulator
 
@@ -145,7 +146,7 @@ _None currently._
 - **Raised:** 2026-10-14
 - **Decided:** 2026-10-14
 - **Owner:** Panos
-- **Outcome:** Layout from the raw viewer checkpoint (`?gamepad=debug`) on Linux Chromium. Axes: 0 stick X = roll, 1 stick Y = pitch (pull back = nose up), 2 throttle lever = main throttle (absolute, forward = 100 %), 3 twist = yaw, 4 rocker = RCS forward/back (analog, right = forward), 5/6 hat = RCS left/right and up/down (forward = up). Buttons, chosen by urgency and hand position: 0 trigger = assist kill rotation (the "panic button" for a tumble), 1 = hold attitude, 3 = assist off, 4 = switch camera, 11 ST = pause and settings, 10 SE = performance overlay; 2 (R3) and 5 free; 6/7 reserved for hyperdrive (Stage 4), 8/9 for time warp (Stage 3). Direct buttons per assist mode instead of a cycle button, so the emergency action is always one press. Dead zones 5 % stick, 10 % twist and rocker; mild response curves. Keyboard and HOTAS work together (axes summed); for the throttle, whichever moved last wins. Everything is rebindable in the pause panel, with per-axis invert, dead zone, curve, and throttle calibration, saved in the browser.
+- **Outcome:** Layout from the raw viewer checkpoint (`?gamepad=debug`) on Linux Chromium. Axes: 0 stick X = roll, 1 stick Y = pitch (pull back = nose up), 2 throttle lever = main throttle (absolute, forward = 100 %), 3 twist = yaw, 4 rocker = RCS forward/back (analog, right = forward), 5/6 hat = RCS left/right and up/down (forward = up). Buttons, chosen by urgency and hand position: 0 trigger = assist kill rotation (the "panic button" for a tumble), 1 = hold attitude, 3 = assist off, 2 (R3) = retrograde hold (added in Stage 2b, D-041), 4 = switch camera, 5 (throttle button 6) = reverse toggle (added in Stage 2b, D-042), 11 ST = pause and settings, 10 SE = performance overlay; 6/7 reserved for hyperdrive (Stage 4), 8/9 for time warp (Stage 3). Direct buttons per assist mode instead of a cycle button, so the emergency action is always one press. Dead zones 5 % stick, 10 % twist and rocker; mild response curves. Keyboard and HOTAS work together (axes summed); for the throttle, whichever moved last wins. Everything is rebindable in the pause panel, with per-axis invert, dead zone, curve, and throttle calibration, saved in the browser.
 
 ### D-039: RCS propellant budget
 
@@ -433,7 +434,7 @@ Planning (done 2026-10-14): repository, purpose, scope, tech stack, assets, and 
 - [x] **Stage 0: Setup.** Vite, TypeScript, and Three.js (WebGPU with WebGL2 fallback); Docker for all tooling; nginx serving HTTPS on 8787 with mkcert certificates; lint, format, type check, tests, and CI; placeholder scene with GPU report and worker budget. (2026-10-14; verified on WebGPU in Chromium, D-034)
 - [x] **Stage 1: Flight core.** Realistic 6-axis flight in empty space on a fixed physics time step, chase and nose cameras, basic heads-up display, keyboard controls, frame rate setting (60 fps default or display rate; D-035). (2026-10-14; D-036 to D-038)
 - [x] **Stage 2: Input.** HOTAS X support tuned for Linux Chromium, rebindable controls, calibration and dead zones. (2026-10-14; D-039, D-040)
-- [ ] **Stage 2b: Game assists.** Retro engines (D-042); retrograde/prograde hold, drift-cancelling flight assist, edge arrows, time-to-stop hint (D-041); spacecraft-shaped greybox (D-043).
+- [x] **Stage 2b: Game assists.** Retro engines (D-042); retrograde/prograde hold, drift-cancelling flight assist, edge arrows, time-to-stop hint (D-041); spacecraft-shaped greybox (D-043). (2026-10-14)
 - [ ] **Stage 3: Earth and Moon.** Real orbits from NASA/JPL data, handling of huge distances (floating origin, logarithmic depth), gravity, two-level time warp. Earth for orbits and views only (no landing, D-044).
 - [ ] **Stage 4: Hyperdrive.** Speed bands 0.1c to 100c, charge-up, gravity-well limits, arrival speed matching.
 - [ ] **Stage 5: Moon spaceports.** Landing pads on real lunar terrain, vertical landing on thrusters, contact checks, refuelling.
