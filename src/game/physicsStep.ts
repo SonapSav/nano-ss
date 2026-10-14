@@ -12,6 +12,17 @@ import {
   type WarpDropReason,
 } from '../world/timeWarp';
 import { TARGET_NEAR, type World } from '../world/world';
+import {
+  BANDS,
+  C,
+  Hyperdrive,
+  arrivalBody,
+  bandFromThrottle,
+  blockingBody,
+  circularOrbitVelocity,
+  governedSpeed,
+  type BodyNow,
+} from '../world/hyperdrive';
 
 /** Everything one physics step reads and changes. */
 export interface PhysicsState {
@@ -24,11 +35,15 @@ export interface PhysicsState {
   /** Body orbited at the end of the last step, and whether the ship was inside the target zone. */
   reference: BodyInfo;
   insideTargetZone: boolean;
+  hyper: Hyperdrive;
 }
+
+export type HyperEvent = 'charging' | 'blocked' | 'aborted' | 'engaged' | 'arrived' | 'dropped';
 
 export interface StepEvents {
   hazard: Hazard | null;
   warpDrop: WarpDropReason | null;
+  hyper: HyperEvent | null;
 }
 
 const INPUT = 0.01;
@@ -48,12 +63,79 @@ export function createPhysicsState(
     commands: createFlightCommands(),
     reference: world.referenceBody(ship.body.position),
     insideTargetZone: ship.body.position.distanceTo(world.target.position) < TARGET_WARP_ZONE,
+    hyper: new Hyperdrive(),
   };
+}
+
+/** Earth and the Moon as they are now, for the hyperdrive. */
+export function bodiesNow(world: World): BodyNow[] {
+  return [
+    {
+      info: EARTH,
+      position: world.bodyState(EARTH).position,
+      velocity: world.bodyState(EARTH).velocity,
+    },
+    { info: MOON, position: world.moonPosition, velocity: world.moonVelocity },
+  ];
+}
+
+const _heading = new Vector3();
+
+/** Puts the ship into a circular orbit around the body it is in, ending the jump. */
+function dropOut(s: PhysicsState, bodies: BodyNow[], at?: BodyNow | null): void {
+  const body = s.ship.body;
+  const refInfo = s.world.referenceBody(body.position);
+  const ref = at ?? bodies.find((b) => b.info === refInfo) ?? bodies[0];
+  if (ref) circularOrbitVelocity(body.position, _heading, ref, body.velocity);
+  s.hyper.finishDrop();
 }
 
 const _orbital = new Vector3();
 const _faReference = new Vector3();
 const _relative = new Vector3();
+
+const _noTranslation = new Vector3();
+
+/**
+ * One step in hyperdrive: time warp held at 1×, the pilot steers with the
+ * rotation controls, and the ship moves along its nose at the governed band
+ * speed, without gravity. At a body's drop-out altitude it drops into orbit.
+ */
+function stepHyperdrive(s: PhysicsState, dt: number, bodies: BodyNow[], events: StepEvents): void {
+  const { ship, world, fc, controls, commands } = s;
+  const body = ship.body;
+  s.warp.limit(1);
+
+  computeCommands(fc, ship, controls, commands, {
+    orbitalVelocity: body.velocity,
+    faReference: null,
+  });
+  commands.engines.main = 0;
+  commands.engines.retro = 0;
+  commands.rcs.translation.copy(_noTranslation);
+
+  const speed = governedSpeed(
+    body.position,
+    _heading,
+    (BANDS[bandFromThrottle(controls.throttle)] ?? 0.1) * C,
+    bodies,
+  );
+  s.hyper.speed = speed;
+  body.velocity.copy(_heading).multiplyScalar(speed);
+  // No gravity argument: the drive bubble carries the ship in a straight line at this speed.
+  stepShip(ship, commands.engines, commands.rcs, dt);
+  world.stepTarget(dt);
+  world.clock.seconds += dt;
+  world.refresh();
+  _heading.set(0, 0, -1).applyQuaternion(body.orientation);
+
+  const arrived = arrivalBody(body.position, _heading, bodiesNow(world));
+  if (arrived) {
+    dropOut(s, bodiesNow(world), arrived);
+    events.hyper = 'arrived';
+  }
+  events.hazard = checkHazard(body.position, world.moonPosition);
+}
 
 /**
  * Advances the game by one physics step of `realDt` seconds of real time:
@@ -62,8 +144,23 @@ const _relative = new Vector3();
  */
 export function stepPhysics(s: PhysicsState, realDt: number): StepEvents {
   const { ship, world, fc, controls, commands } = s;
-  const events: StepEvents = { hazard: null, warpDrop: null };
+  const events: StepEvents = { hazard: null, warpDrop: null, hyper: null };
   const body = ship.body;
+
+  // Hyperdrive requests and charging (D-015, D-018, Stage 4).
+  const bodies = bodiesNow(world);
+  _heading.set(0, 0, -1).applyQuaternion(body.orientation);
+  const change = s.hyper.update(realDt, blockingBody(body.position, bodies) !== null);
+  if (change === 'drop') {
+    dropOut(s, bodies);
+    events.hyper = 'dropped';
+  } else if (change) {
+    events.hyper = change;
+  }
+  if (s.hyper.state === 'active') {
+    stepHyperdrive(s, realDt, bodies, events);
+    return events;
+  }
 
   // Commands once per step, from the state at its start.
   const reference = world.bodyState(world.referenceBody(body.position));

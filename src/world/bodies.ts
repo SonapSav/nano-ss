@@ -9,6 +9,8 @@ export interface BodyInfo {
   hazardAltitude: number;
   /** Warp safety: time warp drops to 1× if the ship is predicted below this altitude (m). */
   warpSafeAltitude: number;
+  /** Hyperdrive (Stage 4): engage only above this altitude, and drop out at it on arrival (m). */
+  hyperAltitude: number;
 }
 
 export const EARTH: BodyInfo = {
@@ -17,6 +19,7 @@ export const EARTH: BodyInfo = {
   radius: 6_371_000,
   hazardAltitude: 100_000,
   warpSafeAltitude: 150_000,
+  hyperAltitude: 1_000_000,
 };
 
 export const MOON: BodyInfo = {
@@ -25,6 +28,7 @@ export const MOON: BodyInfo = {
   radius: 1_737_400,
   hazardAltitude: 0,
   warpSafeAltitude: 20_000,
+  hyperAltitude: 100_000,
 };
 
 /** Earth's axial tilt (rad), for orienting the globe. */
