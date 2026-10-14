@@ -85,15 +85,16 @@ nano-ss/
 
 Items discussed but not yet decided. Each entry records when it was raised, who owns the decision, and the actions expected from them. When an item is decided, move it to **Resolved Decisions** with the outcome and date.
 
+_None currently._
+
+## Resolved Decisions
+
 ### D-029: Snapshots on the NAS
 
 - **Raised:** 2026-10-14
+- **Decided:** 2026-10-14
 - **Owner:** Panos
-- **Status:** Open
-- **Context:** The NAS copy of the Blender sources repo (D-028) is a mirror: if a bad commit is pushed, it reaches the NAS too. A TrueNAS periodic snapshot task on the dataset behind the share (e.g. daily, kept 3 months) gives restorable point-in-time copies that a bad push cannot overwrite.
-- **Action expected (Panos):** Create or confirm the snapshot task in TrueNAS (Data Protection → Periodic Snapshot Tasks) and tell Claude, so this can be closed.
-
-## Resolved Decisions
+- **Outcome:** Panos created a TrueNAS periodic snapshot task on the dataset behind the share (recommended: daily, kept 3 months). Snapshots are read-only, so a bad push or deletion cannot overwrite them. Restore by cloning a snapshot in the TrueNAS web interface (or via Shadow Copies / `.zfs/snapshot` on the share) and copying the repo back; avoid "Rollback", which resets the whole dataset. On 2026-10-14 the share's `.zfs/snapshot` folder was visible from the dev machine but still empty, since the first scheduled snapshot had not run yet.
 
 ### D-028: Backup of Blender sources to the NAS
 
