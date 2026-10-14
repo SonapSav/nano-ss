@@ -85,15 +85,22 @@ nano-ss/
 
 Items discussed but not yet decided. Each entry records when it was raised, who owns the decision, and the actions expected from them. When an item is decided, move it to **Resolved Decisions** with the outcome and date.
 
-### D-028: Backup of Blender sources to the NAS
+### D-029: Snapshots on the NAS
 
 - **Raised:** 2026-10-14
 - **Owner:** Panos
-- **Status:** Open (Panos will decide later)
-- **Context:** Blender sources are versioned in a separate private GitHub repo (D-027), which is also their off-site copy. Panos has a NAS on the local network and will decide later whether and how to back up to it (e.g. a scheduled copy of the assets folder, or a second git remote on the NAS).
-- **Action expected (Panos):** Decide whether to add a NAS backup, and how, when ready.
+- **Status:** Open
+- **Context:** The NAS copy of the Blender sources repo (D-028) is a mirror: if a bad commit is pushed, it reaches the NAS too. A TrueNAS periodic snapshot task on the dataset behind the share (e.g. daily, kept 3 months) gives restorable point-in-time copies that a bad push cannot overwrite.
+- **Action expected (Panos):** Create or confirm the snapshot task in TrueNAS (Data Protection → Periodic Snapshot Tasks) and tell Claude, so this can be closed.
 
 ## Resolved Decisions
+
+### D-028: Backup of Blender sources to the NAS
+
+- **Raised:** 2026-10-14
+- **Decided:** 2026-10-14
+- **Owner:** Panos
+- **Outcome:** Option (a): a second git remote on the NAS. The TrueNAS SMB share is mounted on the dev machine at `/mnt/truenas` (`cifs-utils`, systemd automount from `/etc/fstab` with `nofail`, credentials in a file readable only by Panos). The bare repo lives at `/mnt/truenas/nano-ss/nano-ss-assets.git`. The assets repo's `origin` pushes to both GitHub and the NAS, so one `git push` updates both; `git push nas` pushes to the NAS alone. Verified 2026-10-14: local, GitHub, and NAS copies at the same commit, NAS repo passes `git fsck`. Snapshots continue in D-029.
 
 ### D-027: Replace the Google Drive backup
 
